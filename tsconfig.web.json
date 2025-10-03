@@ -12,6 +12,8 @@
     "strict": false,
     "allowJs": true,
     "checkJs": true,
+    "moduleResolution": "nodenext",
+    "module": "nodenext",
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   }
 }
