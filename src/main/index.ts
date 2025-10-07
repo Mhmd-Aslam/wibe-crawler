@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { WebCrawler, CrawlResult } from './crawler'
 
 function createWindow(): void {
   // Create the browser window.
@@ -59,6 +60,63 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // Crawler functionality
+  let crawler: WebCrawler | null = null
+
+  ipcMain.handle('start-crawl', async (_, url: string) => {
+    if (crawler) {
+      await crawler.close()
+    }
+
+    crawler = new WebCrawler((currentUrl: string, results: CrawlResult[]) => {
+      // Send progress updates to renderer
+      const window = BrowserWindow.getFocusedWindow()
+      if (window) {
+        window.webContents.send('crawl-progress', {
+          currentUrl,
+          results: results.map(r => ({
+            url: r.url,
+            status: r.status,
+            title: r.title,
+            error: r.error
+          }))
+        })
+      }
+    })
+
+    try {
+      const results = await crawler.crawl(url)
+      const window = BrowserWindow.getFocusedWindow()
+      if (window) {
+        window.webContents.send('crawl-complete', {
+          results: results.map(r => ({
+            url: r.url,
+            status: r.status,
+            title: r.title,
+            error: r.error
+          }))
+        })
+      }
+      return { success: true, results }
+    } catch (error) {
+      const window = BrowserWindow.getFocusedWindow()
+      if (window) {
+        window.webContents.send('crawl-error', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('stop-crawl', async () => {
+    if (crawler) {
+      await crawler.close()
+      crawler = null
+    }
+    return { success: true }
+  })
 
   // Window controls
   ipcMain.on('window-minimize', () => {

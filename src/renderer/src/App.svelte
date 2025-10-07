@@ -1,23 +1,15 @@
 
 <script lang="ts">
   import TitleBar from './components/TitleBar.svelte'
+  import { onMount, onDestroy } from 'svelte'
   
   let selectedUrl = ''
   let isScanning = false
   let showResults = false
   let showVulnerabilities = false
   let selectedCrawledUrl = ''
-  
-  const crawledUrls = [
-    'https://example.com/',
-    'https://example.com/login',
-    'https://example.com/dashboard',
-    'https://example.com/profile',
-    'https://example.com/settings',
-    'https://example.com/api/users',
-    'https://example.com/admin',
-    'https://example.com/upload'
-  ]
+  let crawledUrls: string[] = []
+  let crawlStatus = ''
   
   const vulnerabilities = [
     { id: 1, name: 'SQL Injection', severity: 'critical', description: 'Login form parameter vulnerable to SQL injection', size: 'large' },
@@ -33,20 +25,57 @@
   let reportItems = []
   
   // Statistics
-  const stats = {
+  $: stats = {
     totalUrls: crawledUrls.length,
     critical: vulnerabilities.filter(v => v.severity === 'critical').length,
     high: vulnerabilities.filter(v => v.severity === 'high').length,
     medium: vulnerabilities.filter(v => v.severity === 'medium').length,
     low: vulnerabilities.filter(v => v.severity === 'low').length
   }
+
+  onMount(() => {
+    if (window.api?.crawler) {
+      window.api.crawler.onProgress((data) => {
+        crawlStatus = `Crawling: ${data.currentUrl}`
+        crawledUrls = data.results.map((r: any) => r.url)
+        showResults = true
+      })
+
+      window.api.crawler.onComplete((data) => {
+        crawlStatus = 'Crawl complete'
+        crawledUrls = data.results.map((r: any) => r.url)
+        isScanning = false
+        showResults = true
+      })
+
+      window.api.crawler.onError((data) => {
+        crawlStatus = `Error: ${data.error}`
+        isScanning = false
+      })
+    }
+  })
+
+  onDestroy(() => {
+    if (window.api?.crawler) {
+      window.api.crawler.removeAllListeners()
+    }
+  })
   
-  function startScan() {
+  async function startScan() {
+    if (!selectedUrl) return
+    
     isScanning = true
-    setTimeout(() => {
+    crawlStatus = 'Starting crawl...'
+    crawledUrls = []
+    showResults = false
+    showVulnerabilities = false
+    
+    try {
+      await window.api.crawler.startCrawl(selectedUrl)
+    } catch (error) {
+      crawlStatus = `Error: ${error}`
       isScanning = false
-      showResults = true
-    }, 2000)
+    }
   }
   
   function selectUrl(url) {
@@ -86,6 +115,9 @@
         </div>
       {/if}
     </div>
+    {#if isScanning && crawlStatus}
+      <div class="mb-2 text-xs text-gray-400">{crawlStatus}</div>
+    {/if}
     <div class="flex gap-2">
       <input 
         bind:value={selectedUrl}

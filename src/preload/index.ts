@@ -7,6 +7,24 @@ const api = {
     minimize: () => ipcRenderer.send('window-minimize'),
     maximize: () => ipcRenderer.send('window-maximize'),
     close: () => ipcRenderer.send('window-close')
+  },
+  crawler: {
+    startCrawl: (url: string) => ipcRenderer.invoke('start-crawl', url),
+    stopCrawl: () => ipcRenderer.invoke('stop-crawl'),
+    onProgress: (callback: (data: any) => void) => {
+      ipcRenderer.on('crawl-progress', (_, data) => callback(data))
+    },
+    onComplete: (callback: (data: any) => void) => {
+      ipcRenderer.on('crawl-complete', (_, data) => callback(data))
+    },
+    onError: (callback: (data: any) => void) => {
+      ipcRenderer.on('crawl-error', (_, data) => callback(data))
+    },
+    removeAllListeners: () => {
+      ipcRenderer.removeAllListeners('crawl-progress')
+      ipcRenderer.removeAllListeners('crawl-complete')
+      ipcRenderer.removeAllListeners('crawl-error')
+    }
   }
 }
 
