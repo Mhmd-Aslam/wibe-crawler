@@ -80,7 +80,8 @@ app.whenReady().then(() => {
             status: r.status,
             title: r.title,
             error: r.error
-          }))
+          })),
+          domains: crawler!.getAllDiscoveredDomains()
         })
       }
     })
@@ -95,7 +96,8 @@ app.whenReady().then(() => {
             status: r.status,
             title: r.title,
             error: r.error
-          }))
+          })),
+          domains: crawler.getAllDiscoveredDomains()
         })
       }
       return { success: true, results }

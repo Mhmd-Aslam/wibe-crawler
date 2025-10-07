@@ -23,6 +23,30 @@
   ]
   
   let reportItems = []
+  let activeTargetTab = 'urls'
+  let discoveredDomains: string[] = []
+  
+  // Placeholder data for possible targets
+  const possibleTargets = {
+    forms: [
+      { id: 1, type: 'Login Form', url: '/login', method: 'POST', fields: 'username, password' },
+      { id: 2, type: 'Contact Form', url: '/contact', method: 'POST', fields: 'name, email, message' },
+      { id: 3, type: 'Search Form', url: '/search', method: 'GET', fields: 'query' },
+      { id: 4, type: 'Registration Form', url: '/register', method: 'POST', fields: 'email, password, confirm_password' }
+    ],
+    apiCalls: [
+      { id: 1, endpoint: '/api/users', method: 'GET', params: 'id, limit' },
+      { id: 2, endpoint: '/api/auth/login', method: 'POST', params: 'username, password' },
+      { id: 3, endpoint: '/api/data/search', method: 'GET', params: 'q, filter' },
+      { id: 4, endpoint: '/api/upload', method: 'POST', params: 'file, metadata' }
+    ],
+    cookies: [
+      { id: 1, name: 'session_id', value: 'abc123...', secure: false, httpOnly: true },
+      { id: 2, name: 'csrf_token', value: 'xyz789...', secure: true, httpOnly: false },
+      { id: 3, name: 'user_pref', value: 'theme=dark', secure: false, httpOnly: false },
+      { id: 4, name: 'analytics', value: 'tracking_id', secure: true, httpOnly: false }
+    ]
+  }
   
   // Statistics
   $: stats = {
@@ -38,12 +62,14 @@
       window.api.crawler.onProgress((data) => {
         crawlStatus = `Crawling: ${data.currentUrl}`
         crawledUrls = data.results.map((r: any) => r.url)
+        discoveredDomains = data.domains || []
         showResults = true
       })
 
       window.api.crawler.onComplete((data) => {
         crawlStatus = 'Crawl complete'
         crawledUrls = data.results.map((r: any) => r.url)
+        discoveredDomains = data.domains || []
         isScanning = false
         showResults = true
       })
@@ -67,7 +93,8 @@
     isScanning = true
     crawlStatus = 'Starting crawl...'
     crawledUrls = []
-    showResults = false
+    discoveredDomains = []
+    showResults = true
     showVulnerabilities = false
     
     try {
@@ -135,23 +162,6 @@
   </div>
   
   <div class="flex-1 flex overflow-hidden">
-    <!-- Left Panel - Crawled URLs -->
-    {#if showResults}
-    <div class="w-64 border-r border-gray-800 p-3 overflow-y-auto">
-      <h2 class="text-xs font-medium mb-2 text-gray-400 uppercase tracking-wide">Crawled URLs ({crawledUrls.length})</h2>
-      <div class="space-y-1">
-        {#each crawledUrls as url}
-          <button
-            on:click={() => selectUrl(url)}
-            class="w-full text-left p-2 text-xs hover:bg-gray-900 {selectedCrawledUrl === url ? 'text-white border-l-2 border-white pl-2' : 'text-gray-400'}"
-          >
-            <div class="font-mono break-all">{url}</div>
-          </button>
-        {/each}
-      </div>
-    </div>
-    {/if}
-    
     <!-- Main Content Area -->
     <div class="flex-1 p-3 overflow-y-auto">
       {#if !showResults}
@@ -160,18 +170,82 @@
             <p class="text-sm">Enter a URL to start scanning</p>
           </div>
         </div>
-      {:else if !showVulnerabilities}
-        <div class="flex items-center justify-center h-full text-gray-500">
-          <div class="text-center">
-            <p class="text-sm">Select a crawled URL to view vulnerabilities</p>
-          </div>
-        </div>
       {:else}
-        <div>
-          <div class="flex justify-between items-center mb-3">
-            <h2 class="text-sm font-medium text-white">Vulnerabilities Found</h2>
-            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
+        <div class="h-full flex flex-col">
+          <!-- Tab Headers -->
+          <div class="flex border-b border-gray-800 mb-4">
+            <button
+              on:click={() => activeTargetTab = 'urls'}
+              class="px-4 py-2 text-xs {activeTargetTab === 'urls' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
+            >
+              URLs ({crawledUrls.length})
+            </button>
+            <button
+              on:click={() => activeTargetTab = 'domains'}
+              class="px-4 py-2 text-xs {activeTargetTab === 'domains' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
+            >
+              Domains ({discoveredDomains.length})
+            </button>
+            <button
+              on:click={() => activeTargetTab = 'vulnerabilities'}
+              class="px-4 py-2 text-xs {activeTargetTab === 'vulnerabilities' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
+            >
+              Vulnerabilities
+            </button>
+            <button
+              on:click={() => activeTargetTab = 'forms'}
+              class="px-4 py-2 text-xs {activeTargetTab === 'forms' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
+            >
+              Forms
+            </button>
+            <button
+              on:click={() => activeTargetTab = 'apiCalls'}
+              class="px-4 py-2 text-xs {activeTargetTab === 'apiCalls' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
+            >
+              API Calls
+            </button>
+            <button
+              on:click={() => activeTargetTab = 'cookies'}
+              class="px-4 py-2 text-xs {activeTargetTab === 'cookies' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
+            >
+              Cookies
+            </button>
           </div>
+
+          <div class="flex-1 overflow-y-auto">
+            {#if activeTargetTab === 'urls'}
+              <div class="flex justify-between items-center mb-3">
+                <h2 class="text-sm font-medium text-white">Crawled URLs</h2>
+              </div>
+              <div class="space-y-1">
+                {#each crawledUrls as url}
+                  <button
+                    on:click={() => selectUrl(url)}
+                    class="w-full text-left p-2 text-xs hover:bg-gray-900 border border-gray-800 hover:border-gray-600"
+                  >
+                    <div class="font-mono break-all text-gray-300">{url}</div>
+                  </button>
+                {/each}
+              </div>
+            {:else if activeTargetTab === 'domains'}
+              <div class="flex justify-between items-center mb-3">
+                <h2 class="text-sm font-medium text-white">Discovered Domains</h2>
+              </div>
+              <div class="space-y-1">
+                {#each discoveredDomains as domain}
+                  <div class="border border-gray-700 p-3 hover:bg-gray-900">
+                    <div class="flex justify-between items-start mb-2">
+                      <h3 class="font-medium text-sm text-white">{domain}</h3>
+                      <span class="text-xs font-mono text-green-400">active</span>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else if activeTargetTab === 'vulnerabilities'}
+              <div class="flex justify-between items-center mb-3">
+                <h2 class="text-sm font-medium text-white">Vulnerabilities Found</h2>
+                <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
+              </div>
           
           <!-- Minimal Grid -->
           <div class="grid grid-cols-6 gap-2">
@@ -209,7 +283,66 @@
               </div>
             {/each}
           </div>
+        {:else if activeTargetTab === 'forms'}
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm font-medium text-white">Forms Found</h2>
+            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
+          </div>
+          <div class="space-y-2">
+            {#each possibleTargets.forms as form}
+              <div class="border border-gray-700 p-3 hover:bg-gray-900">
+                <div class="flex justify-between items-start mb-2">
+                  <h3 class="font-medium text-sm text-white">{form.type}</h3>
+                  <span class="text-xs font-mono text-blue-400">{form.method}</span>
+                </div>
+                <p class="text-gray-400 text-xs mb-1">URL: {form.url}</p>
+                <p class="text-gray-400 text-xs">Fields: {form.fields}</p>
+              </div>
+            {/each}
+          </div>
+        {:else if activeTargetTab === 'apiCalls'}
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm font-medium text-white">API Calls Found</h2>
+            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
+          </div>
+          <div class="space-y-2">
+            {#each possibleTargets.apiCalls as api}
+              <div class="border border-gray-700 p-3 hover:bg-gray-900">
+                <div class="flex justify-between items-start mb-2">
+                  <h3 class="font-medium text-sm text-white">{api.endpoint}</h3>
+                  <span class="text-xs font-mono text-green-400">{api.method}</span>
+                </div>
+                <p class="text-gray-400 text-xs">Parameters: {api.params}</p>
+              </div>
+            {/each}
+          </div>
+
+        {:else if activeTargetTab === 'cookies'}
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm font-medium text-white">Cookies Found</h2>
+            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
+          </div>
+          <div class="space-y-2">
+            {#each possibleTargets.cookies as cookie}
+              <div class="border border-gray-700 p-3 hover:bg-gray-900">
+                <div class="flex justify-between items-start mb-2">
+                  <h3 class="font-medium text-sm text-white">{cookie.name}</h3>
+                  <div class="flex gap-2">
+                    {#if cookie.secure}
+                      <span class="text-xs font-mono text-green-400">SECURE</span>
+                    {/if}
+                    {#if cookie.httpOnly}
+                      <span class="text-xs font-mono text-blue-400">HTTP-ONLY</span>
+                    {/if}
+                  </div>
+                </div>
+                <p class="text-gray-400 text-xs font-mono">{cookie.value}</p>
+              </div>
+            {/each}
+          </div>
+        {/if}
         </div>
+      </div>
       {/if}
     </div>
     

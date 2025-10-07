@@ -5,6 +5,7 @@ export interface CrawlResult {
   status: number
   title?: string
   links: string[]
+  domains: string[]
   error?: string
 }
 
@@ -14,6 +15,7 @@ export class WebCrawler {
   private urlQueue: string[] = []
   private baseUrl: string = ''
   private results: CrawlResult[] = []
+  private discoveredDomains = new Set<string>()
   private onProgress?: (url: string, results: CrawlResult[]) => void
 
   constructor(onProgress?: (url: string, results: CrawlResult[]) => void) {
@@ -36,6 +38,7 @@ export class WebCrawler {
     this.urlQueue = [startUrl]
     this.crawledUrls.clear()
     this.results = []
+    this.discoveredDomains.clear()
 
     while (this.urlQueue.length > 0 && this.crawledUrls.size < maxPages) {
       console.log(this.urlQueue);
@@ -71,6 +74,7 @@ export class WebCrawler {
           url: currentUrl,
           status: 0,
           links: [],
+          domains: [],
           error: error instanceof Error ? error.message : 'Unknown error'
         }
         this.results.push(errorResult)
@@ -93,6 +97,18 @@ export class WebCrawler {
     }
 
     const page = await this.browser.newPage()
+    const networkRequests = new Set<string>()
+    
+    // Listen to network requests to capture domains
+    page.on('request', (request) => {
+      try {
+        const requestUrl = new URL(request.url())
+        networkRequests.add(requestUrl.hostname)
+        this.discoveredDomains.add(requestUrl.hostname)
+      } catch {
+        // Ignore invalid URLs
+      }
+    })
     
     try {
       const response = await page.goto(url, { 
@@ -122,6 +138,16 @@ export class WebCrawler {
         })
       })
 
+      // Extract domains from links as well
+      links.forEach(link => {
+        try {
+          const linkUrl = new URL(link)
+          this.discoveredDomains.add(linkUrl.hostname)
+        } catch {
+          // Ignore invalid URLs
+        }
+      })
+
       // Normalize and filter links
       const normalizedLinks = links
         .map(link => this.normalizeUrl(link))
@@ -132,7 +158,8 @@ export class WebCrawler {
         url,
         status: response.status(),
         title,
-        links: normalizedLinks
+        links: normalizedLinks,
+        domains: Array.from(networkRequests)
       }
 
     } finally {
@@ -163,6 +190,10 @@ export class WebCrawler {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  getAllDiscoveredDomains(): string[] {
+    return Array.from(this.discoveredDomains)
   }
 
   async close(): Promise<void> {
