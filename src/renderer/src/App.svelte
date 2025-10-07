@@ -10,6 +10,11 @@
   let selectedCrawledUrl = ''
   let crawledUrls: string[] = []
   let crawlStatus = ''
+  let allForms: any[] = []
+  let selectedForm: any = null
+  let formData: Record<string, string> = {}
+  let formResponse: any = null
+  let isSubmittingForm = false
   
   const vulnerabilities = [
     { id: 1, name: 'SQL Injection', severity: 'critical', description: 'Login form parameter vulnerable to SQL injection', size: 'large' },
@@ -28,12 +33,6 @@
   
   // Placeholder data for possible targets
   const possibleTargets = {
-    forms: [
-      { id: 1, type: 'Login Form', url: '/login', method: 'POST', fields: 'username, password' },
-      { id: 2, type: 'Contact Form', url: '/contact', method: 'POST', fields: 'name, email, message' },
-      { id: 3, type: 'Search Form', url: '/search', method: 'GET', fields: 'query' },
-      { id: 4, type: 'Registration Form', url: '/register', method: 'POST', fields: 'email, password, confirm_password' }
-    ],
     apiCalls: [
       { id: 1, endpoint: '/api/users', method: 'GET', params: 'id, limit' },
       { id: 2, endpoint: '/api/auth/login', method: 'POST', params: 'username, password' },
@@ -63,6 +62,7 @@
         crawlStatus = `Crawling: ${data.currentUrl}`
         crawledUrls = data.results.map((r: any) => r.url)
         discoveredDomains = data.domains || []
+        allForms = data.results.flatMap((r: any) => r.forms || [])
         showResults = true
       })
 
@@ -70,6 +70,7 @@
         crawlStatus = 'Crawl complete'
         crawledUrls = data.results.map((r: any) => r.url)
         discoveredDomains = data.domains || []
+        allForms = data.results.flatMap((r: any) => r.forms || [])
         isScanning = false
         showResults = true
       })
@@ -94,6 +95,9 @@
     crawlStatus = 'Starting crawl...'
     crawledUrls = []
     discoveredDomains = []
+    allForms = []
+    selectedForm = null
+    formResponse = null
     showResults = true
     showVulnerabilities = false
     
@@ -122,6 +126,57 @@
   
   function exportReport() {
     alert('Report exported!')
+  }
+
+  function selectForm(form: any) {
+    selectedForm = form
+    formData = {}
+    formResponse = null
+    form.fields.forEach((field: any) => {
+      formData[field.name] = field.value || ''
+    })
+  }
+
+  async function submitForm() {
+    if (!selectedForm) return
+
+    isSubmittingForm = true
+    formResponse = null
+
+    try {
+      const result = await window.api.crawler.submitForm({
+        url: selectedForm.url,
+        action: selectedForm.action,
+        method: selectedForm.method,
+        fields: formData
+      })
+
+      if (result.success) {
+        formResponse = result.result
+      } else {
+        formResponse = {
+          error: result.error,
+          status: 0,
+          headers: {},
+          body: ''
+        }
+      }
+    } catch (error) {
+      formResponse = {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        status: 0,
+        headers: {},
+        body: ''
+      }
+    } finally {
+      isSubmittingForm = false
+    }
+  }
+
+  function closeFormModal() {
+    selectedForm = null
+    formResponse = null
+    formData = {}
   }
 </script>
 
@@ -196,7 +251,7 @@
               on:click={() => activeTargetTab = 'forms'}
               class="px-4 py-2 text-xs {activeTargetTab === 'forms' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
             >
-              Forms
+              Forms ({allForms.length})
             </button>
             <button
               on:click={() => activeTargetTab = 'apiCalls'}
@@ -286,17 +341,26 @@
         {:else if activeTargetTab === 'forms'}
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-sm font-medium text-white">Forms Found</h2>
-            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
           </div>
           <div class="space-y-2">
-            {#each possibleTargets.forms as form}
+            {#each allForms as form}
               <div class="border border-gray-700 p-3 hover:bg-gray-900">
                 <div class="flex justify-between items-start mb-2">
-                  <h3 class="font-medium text-sm text-white">{form.type}</h3>
-                  <span class="text-xs font-mono text-blue-400">{form.method}</span>
+                  <h3 class="font-medium text-sm text-white">Form ({form.method.toUpperCase()})</h3>
+                  <button
+                    on:click={() => selectForm(form)}
+                    class="text-xs text-blue-400 hover:text-blue-300 border-b border-blue-700 hover:border-blue-400"
+                  >
+                    Test Form
+                  </button>
                 </div>
+                <p class="text-gray-400 text-xs mb-1">Action: {form.action}</p>
                 <p class="text-gray-400 text-xs mb-1">URL: {form.url}</p>
-                <p class="text-gray-400 text-xs">Fields: {form.fields}</p>
+                <p class="text-gray-400 text-xs">Fields: {form.fields.map(f => f.name).join(', ')}</p>
+              </div>
+            {:else}
+              <div class="text-center text-gray-500 py-8">
+                <p class="text-sm">No forms found during crawl</p>
               </div>
             {/each}
           </div>
@@ -388,3 +452,134 @@
     {/if}
   </div>
 </div>
+
+<!-- Form Testing Modal -->
+{#if selectedForm}
+  <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-900 border border-gray-700 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="p-4 border-b border-gray-700">
+        <div class="flex justify-between items-center">
+          <h2 class="text-sm font-medium text-white">Test Form</h2>
+          <button
+            on:click={closeFormModal}
+            class="text-gray-400 hover:text-white text-lg"
+          >
+            ×
+          </button>
+        </div>
+        <div class="text-xs text-gray-400 mt-1">
+          {selectedForm.method.toUpperCase()} {selectedForm.action}
+        </div>
+      </div>
+      
+      <div class="flex-1 overflow-y-auto">
+        <div class="p-4">
+          <div class="grid grid-cols-1 gap-4 mb-4">
+            {#each selectedForm.fields as field}
+              <div>
+                <label class="block text-xs font-medium text-gray-300 mb-1">
+                  {field.name}
+                  {#if field.required}
+                    <span class="text-red-400">*</span>
+                  {/if}
+                </label>
+                {#if field.type === 'textarea'}
+                  <textarea
+                    bind:value={formData[field.name]}
+                    placeholder={field.placeholder || field.name}
+                    class="w-full bg-gray-800 border border-gray-600 text-white text-xs p-2 rounded focus:border-blue-500 focus:outline-none"
+                    rows="3"
+                  ></textarea>
+                {:else if field.type === 'select'}
+                  <select
+                    bind:value={formData[field.name]}
+                    class="w-full bg-gray-800 border border-gray-600 text-white text-xs p-2 rounded focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select option</option>
+                  </select>
+                {:else}
+                  <input
+                    type={field.type === 'password' ? 'password' : 'text'}
+                    bind:value={formData[field.name]}
+                    placeholder={field.placeholder || field.name}
+                    class="w-full bg-gray-800 border border-gray-600 text-white text-xs p-2 rounded focus:border-blue-500 focus:outline-none"
+                  />
+                {/if}
+                <div class="text-xs text-gray-500 mt-1">
+                  Type: {field.type}
+                  {#if field.value}
+                    | Default: {field.value}
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+          
+          <div class="flex gap-2 mb-4">
+            <button
+              on:click={submitForm}
+              disabled={isSubmittingForm}
+              class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-xs px-4 py-2 rounded"
+            >
+              {isSubmittingForm ? 'Submitting...' : 'Submit Form'}
+            </button>
+            <button
+              on:click={closeFormModal}
+              class="border border-gray-600 hover:border-gray-500 text-white text-xs px-4 py-2 rounded"
+            >
+              Cancel
+            </button>
+          </div>
+          
+          {#if formResponse}
+            <div class="border-t border-gray-700 pt-4">
+              <h3 class="text-sm font-medium text-white mb-3">Response</h3>
+              
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="block text-xs font-medium text-gray-300 mb-1">Status Code</label>
+                  <div class="text-sm font-mono {formResponse.status >= 200 && formResponse.status < 300 ? 'text-green-400' : formResponse.status >= 400 ? 'text-red-400' : 'text-yellow-400'}">
+                    {formResponse.status || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-300 mb-1">Content Type</label>
+                  <div class="text-sm font-mono text-gray-400">
+                    {formResponse.headers['content-type'] || 'N/A'}
+                  </div>
+                </div>
+              </div>
+              
+              {#if formResponse.error}
+                <div class="mb-4">
+                  <label class="block text-xs font-medium text-gray-300 mb-1">Error</label>
+                  <div class="bg-gray-800 border border-red-600 text-red-400 text-xs p-3 rounded font-mono">
+                    {formResponse.error}
+                  </div>
+                </div>
+              {/if}
+              
+              {#if Object.keys(formResponse.headers).length > 0}
+                <div class="mb-4">
+                  <label class="block text-xs font-medium text-gray-300 mb-1">Headers</label>
+                  <div class="bg-gray-800 border border-gray-600 text-xs p-3 rounded max-h-32 overflow-y-auto">
+                    <pre class="text-gray-300 font-mono">{JSON.stringify(formResponse.headers, null, 2)}</pre>
+                  </div>
+                </div>
+              {/if}
+              
+              {#if formResponse.body}
+                <div>
+                  <label class="block text-xs font-medium text-gray-300 mb-1">Response Body</label>
+                  <div class="bg-gray-800 border border-gray-600 text-xs p-3 rounded max-h-64 overflow-y-auto">
+                    <pre class="text-gray-300 font-mono whitespace-pre-wrap">{formResponse.body}</pre>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}

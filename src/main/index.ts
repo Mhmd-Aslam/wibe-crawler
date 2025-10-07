@@ -79,6 +79,7 @@ app.whenReady().then(() => {
             url: r.url,
             status: r.status,
             title: r.title,
+            forms: r.forms,
             error: r.error
           })),
           domains: crawler!.getAllDiscoveredDomains()
@@ -95,6 +96,7 @@ app.whenReady().then(() => {
             url: r.url,
             status: r.status,
             title: r.title,
+            forms: r.forms,
             error: r.error
           })),
           domains: crawler.getAllDiscoveredDomains()
@@ -118,6 +120,23 @@ app.whenReady().then(() => {
       crawler = null
     }
     return { success: true }
+  })
+
+  ipcMain.handle('submit-form', async (_, formData) => {
+    if (!crawler) {
+      crawler = new WebCrawler()
+      await crawler.init()
+    }
+
+    try {
+      const result = await crawler.submitForm(formData)
+      return { success: true, result }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
   })
 
   // Window controls
