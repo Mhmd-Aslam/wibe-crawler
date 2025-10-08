@@ -46,7 +46,7 @@ export class WebCrawler {
     })
   }
 
-  async crawl(startUrl: string, maxPages: number = 50): Promise<CrawlResult[]> {
+  async crawl(startUrl: string, maxPages: number = 50, batchSize: number = 20): Promise<CrawlResult[]> {
     if (!this.browser) {
       await this.init()
     }
@@ -59,51 +59,53 @@ export class WebCrawler {
 
     while (this.urlQueue.length > 0 && this.crawledUrls.size < maxPages) {
       console.log(this.urlQueue);
-      const currentUrl = this.urlQueue.shift()!
       
-      if (this.crawledUrls.has(currentUrl)) {
-        continue
+      // Get batch of URLs to crawl
+      const batchUrls: string[] = []
+      while (batchUrls.length < batchSize && this.urlQueue.length > 0 && this.crawledUrls.size + batchUrls.length < maxPages) {
+        const url = this.urlQueue.shift()!
+        if (!this.crawledUrls.has(url)) {
+          batchUrls.push(url)
+          this.crawledUrls.add(url)
+        }
       }
 
-      this.crawledUrls.add(currentUrl)
-      
-      try {
-        const result = await this.crawlPage(currentUrl)
-        this.results.push(result)
-        
-        // Add new links to queue
-        const newLinks = result.links.filter(link => 
-          !this.crawledUrls.has(link) && 
-          !this.urlQueue.includes(link) &&
-          this.isSameDomain(link)
-        )
-        
-        this.urlQueue.push(...newLinks)
+      if (batchUrls.length === 0) break
 
-        // Notify progress
-        if (this.onProgress) {
-          this.onProgress(currentUrl, [...this.results])
-        }
-
-      } catch (error) {
-        console.error(error);
-        const errorResult: CrawlResult = {
-          url: currentUrl,
+      // Crawl batch simultaneously
+      const batchPromises = batchUrls.map(url => 
+        this.crawlPage(url).catch(error => ({
+          url,
           status: 0,
           links: [],
           domains: [],
           forms: [],
           error: error instanceof Error ? error.message : 'Unknown error'
-        }
-        this.results.push(errorResult)
+        } as CrawlResult))
+      )
 
+      const batchResults = await Promise.all(batchPromises)
+      this.results.push(...batchResults)
+
+      // Process all results to add new links to queue
+      for (const result of batchResults) {
+        if (result.links.length > 0) {
+          const newLinks = result.links.filter(link => 
+            !this.crawledUrls.has(link) && 
+            !this.urlQueue.includes(link) &&
+            this.isSameDomain(link)
+          )
+          this.urlQueue.push(...newLinks)
+        }
+
+        // Notify progress for each completed URL
         if (this.onProgress) {
-          this.onProgress(currentUrl, [...this.results])
+          this.onProgress(result.url, [...this.results])
         }
       }
 
-      // Small delay to be respectful
-      await this.delay(100)
+      // Small delay between batches to be respectful
+      await this.delay(200)
     }
 
     return this.results
