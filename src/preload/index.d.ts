@@ -9,6 +9,7 @@ interface WindowControls {
 interface CrawlerAPI {
   startCrawl: (url: string) => Promise<any>
   stopCrawl: () => Promise<any>
+  submitForm: (formData: any) => Promise<any>
   onProgress: (callback: (data: any) => void) => void
   onComplete: (callback: (data: any) => void) => void
   onError: (callback: (data: any) => void) => void

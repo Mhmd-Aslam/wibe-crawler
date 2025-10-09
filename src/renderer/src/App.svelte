@@ -6,11 +6,12 @@
   let selectedUrl = ''
   let isScanning = false
   let showResults = false
-  let showVulnerabilities = false
   let selectedCrawledUrl = ''
   let crawledUrls: string[] = []
   let crawlStatus = ''
   let allForms: any[] = []
+  let allApiCalls: any[] = []
+  let allCookies: any[] = []
   let selectedForm: any = null
   let formData: Record<string, string> = {}
   let formResponse: any = null
@@ -31,21 +32,7 @@
   let activeTargetTab = 'urls'
   let discoveredDomains: string[] = []
   
-  // Placeholder data for possible targets
-  const possibleTargets = {
-    apiCalls: [
-      { id: 1, endpoint: '/api/users', method: 'GET', params: 'id, limit' },
-      { id: 2, endpoint: '/api/auth/login', method: 'POST', params: 'username, password' },
-      { id: 3, endpoint: '/api/data/search', method: 'GET', params: 'q, filter' },
-      { id: 4, endpoint: '/api/upload', method: 'POST', params: 'file, metadata' }
-    ],
-    cookies: [
-      { id: 1, name: 'session_id', value: 'abc123...', secure: false, httpOnly: true },
-      { id: 2, name: 'csrf_token', value: 'xyz789...', secure: true, httpOnly: false },
-      { id: 3, name: 'user_pref', value: 'theme=dark', secure: false, httpOnly: false },
-      { id: 4, name: 'analytics', value: 'tracking_id', secure: true, httpOnly: false }
-    ]
-  }
+
   
   // Statistics
   $: stats = {
@@ -63,6 +50,8 @@
         crawledUrls = data.results.map((r: any) => r.url)
         discoveredDomains = data.domains || []
         allForms = data.results.flatMap((r: any) => r.forms || [])
+        allApiCalls = data.allApiCalls || []
+        allCookies = data.allCookies || []
         showResults = true
       })
 
@@ -71,6 +60,8 @@
         crawledUrls = data.results.map((r: any) => r.url)
         discoveredDomains = data.domains || []
         allForms = data.results.flatMap((r: any) => r.forms || [])
+        allApiCalls = data.allApiCalls || []
+        allCookies = data.allCookies || []
         isScanning = false
         showResults = true
       })
@@ -96,10 +87,11 @@
     crawledUrls = []
     discoveredDomains = []
     allForms = []
+    allApiCalls = []
+    allCookies = []
     selectedForm = null
     formResponse = null
     showResults = true
-    showVulnerabilities = false
     
     try {
       await window.api.crawler.startCrawl(selectedUrl)
@@ -111,7 +103,6 @@
   
   function selectUrl(url) {
     selectedCrawledUrl = url
-    showVulnerabilities = true
   }
   
   function addToReport(vuln) {
@@ -257,13 +248,13 @@
               on:click={() => activeTargetTab = 'apiCalls'}
               class="px-4 py-2 text-xs {activeTargetTab === 'apiCalls' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
             >
-              API Calls
+              API Calls ({allApiCalls.length})
             </button>
             <button
               on:click={() => activeTargetTab = 'cookies'}
               class="px-4 py-2 text-xs {activeTargetTab === 'cookies' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
             >
-              Cookies
+              Cookies ({allCookies.length})
             </button>
           </div>
 
@@ -367,16 +358,36 @@
         {:else if activeTargetTab === 'apiCalls'}
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-sm font-medium text-white">API Calls Found</h2>
-            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
           </div>
           <div class="space-y-2">
-            {#each possibleTargets.apiCalls as api}
+            {#each allApiCalls as api}
               <div class="border border-gray-700 p-3 hover:bg-gray-900">
                 <div class="flex justify-between items-start mb-2">
-                  <h3 class="font-medium text-sm text-white">{api.endpoint}</h3>
-                  <span class="text-xs font-mono text-green-400">{api.method}</span>
+                  <h3 class="font-medium text-sm text-white break-all">{api.endpoint}</h3>
+                  <div class="flex gap-2">
+                    <span class="text-xs font-mono text-green-400">{api.method}</span>
+                    {#if api.responseStatus}
+                      <span class="text-xs font-mono {api.responseStatus >= 200 && api.responseStatus < 300 ? 'text-green-400' : api.responseStatus >= 400 ? 'text-red-400' : 'text-yellow-400'}">
+                        {api.responseStatus}
+                      </span>
+                    {/if}
+                  </div>
                 </div>
                 <p class="text-gray-400 text-xs">Parameters: {api.params}</p>
+                {#if Object.keys(api.headers).length > 0}
+                  <details class="mt-2">
+                    <summary class="text-xs text-gray-400 cursor-pointer hover:text-white">Headers</summary>
+                    <div class="mt-1 text-xs text-gray-500 font-mono">
+                      {#each Object.entries(api.headers) as [key, value]}
+                        <div>{key}: {value}</div>
+                      {/each}
+                    </div>
+                  </details>
+                {/if}
+              </div>
+            {:else}
+              <div class="text-center text-gray-500 py-8">
+                <p class="text-sm">No API calls detected during crawl</p>
               </div>
             {/each}
           </div>
@@ -384,10 +395,9 @@
         {:else if activeTargetTab === 'cookies'}
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-sm font-medium text-white">Cookies Found</h2>
-            <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
           </div>
           <div class="space-y-2">
-            {#each possibleTargets.cookies as cookie}
+            {#each allCookies as cookie}
               <div class="border border-gray-700 p-3 hover:bg-gray-900">
                 <div class="flex justify-between items-start mb-2">
                   <h3 class="font-medium text-sm text-white">{cookie.name}</h3>
@@ -398,9 +408,23 @@
                     {#if cookie.httpOnly}
                       <span class="text-xs font-mono text-blue-400">HTTP-ONLY</span>
                     {/if}
+                    {#if cookie.sameSite}
+                      <span class="text-xs font-mono text-purple-400">{cookie.sameSite}</span>
+                    {/if}
                   </div>
                 </div>
-                <p class="text-gray-400 text-xs font-mono">{cookie.value}</p>
+                <p class="text-gray-400 text-xs font-mono break-all">{cookie.value}</p>
+                <div class="mt-2 text-xs text-gray-500">
+                  <div>Domain: {cookie.domain}</div>
+                  <div>Path: {cookie.path}</div>
+                  {#if cookie.expires}
+                    <div>Expires: {new Date(cookie.expires * 1000).toLocaleString()}</div>
+                  {/if}
+                </div>
+              </div>
+            {:else}
+              <div class="text-center text-gray-500 py-8">
+                <p class="text-sm">No cookies found during crawl</p>
               </div>
             {/each}
           </div>
@@ -477,12 +501,12 @@
           <div class="grid grid-cols-1 gap-4 mb-4">
             {#each selectedForm.fields as field}
               <div>
-                <label class="block text-xs font-medium text-gray-300 mb-1">
+                <span class="block text-xs font-medium text-gray-300 mb-1">
                   {field.name}
                   {#if field.required}
                     <span class="text-red-400">*</span>
                   {/if}
-                </label>
+                </span>
                 {#if field.type === 'textarea'}
                   <textarea
                     bind:value={formData[field.name]}
@@ -537,13 +561,13 @@
               
               <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label class="block text-xs font-medium text-gray-300 mb-1">Status Code</label>
+                  <span class="block text-xs font-medium text-gray-300 mb-1">Status Code</span>
                   <div class="text-sm font-mono {formResponse.status >= 200 && formResponse.status < 300 ? 'text-green-400' : formResponse.status >= 400 ? 'text-red-400' : 'text-yellow-400'}">
                     {formResponse.status || 'N/A'}
                   </div>
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-gray-300 mb-1">Content Type</label>
+                  <span class="block text-xs font-medium text-gray-300 mb-1">Content Type</span>
                   <div class="text-sm font-mono text-gray-400">
                     {formResponse.headers['content-type'] || 'N/A'}
                   </div>
@@ -552,7 +576,7 @@
               
               {#if formResponse.error}
                 <div class="mb-4">
-                  <label class="block text-xs font-medium text-gray-300 mb-1">Error</label>
+                  <span class="block text-xs font-medium text-gray-300 mb-1">Error</span>
                   <div class="bg-gray-800 border border-red-600 text-red-400 text-xs p-3 rounded font-mono">
                     {formResponse.error}
                   </div>
@@ -561,7 +585,7 @@
               
               {#if Object.keys(formResponse.headers).length > 0}
                 <div class="mb-4">
-                  <label class="block text-xs font-medium text-gray-300 mb-1">Headers</label>
+                  <span class="block text-xs font-medium text-gray-300 mb-1">Headers</span>
                   <div class="bg-gray-800 border border-gray-600 text-xs p-3 rounded max-h-32 overflow-y-auto">
                     <pre class="text-gray-300 font-mono">{JSON.stringify(formResponse.headers, null, 2)}</pre>
                   </div>
@@ -570,7 +594,7 @@
               
               {#if formResponse.body}
                 <div>
-                  <label class="block text-xs font-medium text-gray-300 mb-1">Response Body</label>
+                  <span class="block text-xs font-medium text-gray-300 mb-1">Response Body</span>
                   <div class="bg-gray-800 border border-gray-600 text-xs p-3 rounded max-h-64 overflow-y-auto">
                     <pre class="text-gray-300 font-mono whitespace-pre-wrap">{formResponse.body}</pre>
                   </div>

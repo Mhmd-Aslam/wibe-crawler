@@ -16,6 +16,28 @@ export interface DetectedForm {
   fields: FormField[]
 }
 
+export interface ApiCall {
+  id: string
+  endpoint: string
+  method: string
+  params: string
+  headers: Record<string, string>
+  responseStatus?: number
+  responseHeaders?: Record<string, string>
+}
+
+export interface CookieData {
+  id: string
+  name: string
+  value: string
+  domain: string
+  path: string
+  secure: boolean
+  httpOnly: boolean
+  sameSite?: string
+  expires?: number
+}
+
 export interface CrawlResult {
   url: string
   status: number
@@ -23,6 +45,8 @@ export interface CrawlResult {
   links: string[]
   domains: string[]
   forms: DetectedForm[]
+  apiCalls: ApiCall[]
+  cookies: CookieData[]
   error?: string
 }
 
@@ -33,6 +57,8 @@ export class WebCrawler {
   private baseUrl: string = ''
   private results: CrawlResult[] = []
   private discoveredDomains = new Set<string>()
+  private allApiCalls = new Map<string, ApiCall>()
+  private allCookies = new Map<string, CookieData>()
   private onProgress?: (url: string, results: CrawlResult[]) => void
 
   constructor(onProgress?: (url: string, results: CrawlResult[]) => void) {
@@ -80,6 +106,8 @@ export class WebCrawler {
           links: [],
           domains: [],
           forms: [],
+          apiCalls: [],
+          cookies: [],
           error: error instanceof Error ? error.message : 'Unknown error'
         } as CrawlResult))
       )
@@ -117,16 +145,49 @@ export class WebCrawler {
     }
 
     const page = await this.browser.newPage()
-    const networkRequests = new Set<string>()
+    const pageApiCalls: ApiCall[] = []
+    const pageCookies: CookieData[] = []
+    const apiDomains = new Set<string>()
     
-    // Listen to network requests to capture domains
+    // Listen to network requests to capture API calls and domains
     page.on('request', (request) => {
       try {
         const requestUrl = new URL(request.url())
-        networkRequests.add(requestUrl.hostname)
-        this.discoveredDomains.add(requestUrl.hostname)
+        const isApiCall = this.isApiEndpoint(request.url(), request.method())
+        
+        if (isApiCall) {
+          const apiCall: ApiCall = {
+            id: `api_${Math.random().toString(36).substr(2, 9)}`,
+            endpoint: request.url(),
+            method: request.method(),
+            params: this.extractParams(request.url()),
+            headers: request.headers()
+          }
+          pageApiCalls.push(apiCall)
+          this.allApiCalls.set(apiCall.id, apiCall)
+          apiDomains.add(requestUrl.hostname)
+          this.discoveredDomains.add(requestUrl.hostname)
+        }
       } catch {
         // Ignore invalid URLs
+      }
+    })
+
+    // Listen to responses to capture API response data
+    page.on('response', (response) => {
+      try {
+        const requestUrl = response.url()
+        const isApiCall = this.isApiEndpoint(requestUrl, response.request().method())
+        
+        if (isApiCall) {
+          const existingApiCall = pageApiCalls.find(api => api.endpoint === requestUrl)
+          if (existingApiCall) {
+            existingApiCall.responseStatus = response.status()
+            existingApiCall.responseHeaders = response.headers()
+          }
+        }
+      } catch {
+        // Ignore errors
       }
     })
     
@@ -187,6 +248,25 @@ export class WebCrawler {
         })
       }, url)
 
+      // Get cookies from the page
+      const cookies = await page.cookies()
+      cookies.forEach(cookie => {
+        const cookieData: CookieData = {
+          id: `cookie_${Math.random().toString(36).substr(2, 9)}`,
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          httpOnly: cookie.httpOnly || false,
+          sameSite: cookie.sameSite as string,
+          expires: cookie.expires
+        }
+        pageCookies.push(cookieData)
+        this.allCookies.set(cookieData.id, cookieData)
+        this.discoveredDomains.add(cookie.domain)
+      })
+
       // Extract domains from links as well
       links.forEach(link => {
         try {
@@ -208,8 +288,10 @@ export class WebCrawler {
         status: response.status(),
         title,
         links: normalizedLinks,
-        domains: Array.from(networkRequests),
-        forms
+        domains: Array.from(apiDomains),
+        forms,
+        apiCalls: pageApiCalls,
+        cookies: pageCookies
       }
 
     } finally {
@@ -244,6 +326,57 @@ export class WebCrawler {
 
   getAllDiscoveredDomains(): string[] {
     return Array.from(this.discoveredDomains)
+  }
+
+  getAllApiCalls(): ApiCall[] {
+    return Array.from(this.allApiCalls.values())
+  }
+
+  getAllCookies(): CookieData[] {
+    return Array.from(this.allCookies.values())
+  }
+
+  private isApiEndpoint(url: string, method: string): boolean {
+    try {
+      const urlObj = new URL(url)
+      const path = urlObj.pathname.toLowerCase()
+      
+      // Common API patterns
+      const apiPatterns = [
+        '/api/',
+        '/rest/',
+        '/graphql',
+        '/v1/',
+        '/v2/',
+        '/v3/',
+        '.json',
+        '.xml'
+      ]
+      
+      // Check if URL contains API patterns
+      const hasApiPattern = apiPatterns.some(pattern => 
+        path.includes(pattern) || url.includes(pattern)
+      )
+      
+      // Check HTTP methods typically used for APIs
+      const isApiMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ||
+                          (method === 'GET' && hasApiPattern)
+      
+      // Check content type headers would be ideal but not available in request event
+      return hasApiPattern || isApiMethod
+    } catch {
+      return false
+    }
+  }
+
+  private extractParams(url: string): string {
+    try {
+      const urlObj = new URL(url)
+      const params = Array.from(urlObj.searchParams.keys())
+      return params.length > 0 ? params.join(', ') : 'none'
+    } catch {
+      return 'none'
+    }
   }
 
   async submitForm(formData: {

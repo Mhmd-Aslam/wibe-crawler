@@ -80,9 +80,13 @@ app.whenReady().then(() => {
             status: r.status,
             title: r.title,
             forms: r.forms,
+            apiCalls: r.apiCalls,
+            cookies: r.cookies,
             error: r.error
           })),
-          domains: crawler!.getAllDiscoveredDomains()
+          domains: crawler!.getAllDiscoveredDomains(),
+          allApiCalls: crawler!.getAllApiCalls(),
+          allCookies: crawler!.getAllCookies()
         })
       }
     })
@@ -97,9 +101,13 @@ app.whenReady().then(() => {
             status: r.status,
             title: r.title,
             forms: r.forms,
+            apiCalls: r.apiCalls,
+            cookies: r.cookies,
             error: r.error
           })),
-          domains: crawler.getAllDiscoveredDomains()
+          domains: crawler.getAllDiscoveredDomains(),
+          allApiCalls: crawler.getAllApiCalls(),
+          allCookies: crawler.getAllCookies()
         })
       }
       return { success: true, results }
