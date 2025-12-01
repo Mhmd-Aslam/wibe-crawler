@@ -17,8 +17,15 @@ function createWindow(): void {
     //   symbolColor: '#ffffff',
     //   height: 30
     // },
-    transparent: true,
+    // Improve Windows snapping and maximize behavior for frameless windows
     frame: false,
+    resizable: true,
+    minimizable: true,
+    maximizable: true,
+    thickFrame: true,
+    // Transparency can interfere with snapping/maximize on Windows. Keep transparency off on win32.
+    transparent: process.platform === 'win32' ? false : true,
+    backgroundColor: '#000000',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -29,6 +36,21 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
+
+  // Emit window state to renderer for UI updates
+  const sendWindowState = () => {
+    const focused = BrowserWindow.getFocusedWindow()
+    if (focused) {
+      focused.webContents.send('window-state', {
+        isMaximized: focused.isMaximized(),
+        isMinimized: focused.isMinimized()
+      })
+    }
+  }
+  mainWindow.on('maximize', sendWindowState)
+  mainWindow.on('unmaximize', sendWindowState)
+  mainWindow.on('minimize', sendWindowState)
+  mainWindow.on('restore', sendWindowState)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -180,6 +202,30 @@ app.whenReady().then(() => {
       } else {
         window.maximize()
       }
+      const focused = BrowserWindow.getFocusedWindow()
+      if (focused) {
+        focused.webContents.send('window-state', {
+          isMaximized: focused.isMaximized(),
+          isMinimized: focused.isMinimized()
+        })
+      }
+    }
+  })
+
+  // Optional: allow renderer to request current window state
+  ipcMain.handle('window-get-state', () => {
+    const window = BrowserWindow.getFocusedWindow()
+    return window
+      ? { isMaximized: window.isMaximized(), isMinimized: window.isMinimized() }
+      : { isMaximized: false, isMinimized: false }
+  })
+
+  // Support dblclick on custom title bar to toggle maximize
+  ipcMain.on('window-toggle-maximize', () => {
+    const window = BrowserWindow.getFocusedWindow()
+    if (window) {
+      if (window.isMaximized()) window.unmaximize()
+      else window.maximize()
     }
   })
 

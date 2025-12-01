@@ -4,6 +4,9 @@ interface WindowControls {
   minimize: () => void
   maximize: () => void
   close: () => void
+  toggleMaximize: () => void
+  onState: (callback: (state: { isMaximized: boolean; isMinimized: boolean }) => void) => void
+  getState: () => Promise<{ isMaximized: boolean; isMinimized: boolean }>
 }
 
 interface CrawlerAPI {

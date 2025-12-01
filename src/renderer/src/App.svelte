@@ -1,8 +1,8 @@
 <script lang="ts">
   import TitleBar from './components/TitleBar.svelte'
   import { onMount, onDestroy } from 'svelte'
-
-  let selectedUrl = ''
+  
+  let selectedUrl = 'https://'
   let isScanning = false
   let showResults = false
   let selectedCrawledUrl = ''
@@ -232,6 +232,18 @@
     formResponse = null
     formData = {}
   }
+
+  // Hint overlay for URL input
+  let mirrorEl: HTMLSpanElement | null = null
+  $: prefixWidth = mirrorEl ? mirrorEl.offsetWidth : 0
+  $: showUrlHint = selectedUrl === 'https://'
+
+  function onUrlKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && selectedUrl && !isScanning) {
+      e.preventDefault()
+      startScan()
+    }
+  }
 </script>
 
 <div class="flex flex-col bg-black w-screen h-screen text-white text-sm">
@@ -255,12 +267,26 @@
       <div class="mb-2 text-xs text-gray-400">{crawlStatus}</div>
     {/if}
     <div class="flex gap-2">
-      <input
-        bind:value={selectedUrl}
-        placeholder="https://example.com"
-        class="flex-1 bg-transparent border border-gray-700 p-2 px-3 text-xs outline-none focus:border-gray-500"
-      />
-      <button
+      <div class="relative flex-1">
+        <!-- Hidden mirror to measure the width of current prefix -->
+        <span
+          bind:this={mirrorEl}
+          class="invisible absolute top-0 left-3 text-xs whitespace-pre"
+        >{selectedUrl}</span>
+        <input 
+          bind:value={selectedUrl}
+          placeholder="https://example.com" 
+          class="w-full bg-transparent border border-gray-700 p-2 px-3 text-xs outline-none focus:border-gray-500"
+          on:keydown={onUrlKeydown}
+        />
+        {#if showUrlHint}
+          <span
+            class="absolute top-1/2 -translate-y-1/2 text-xs text-gray-600 pointer-events-none"
+            style={`left: ${prefixWidth + 12}px;`}
+          >example.com</span>
+        {/if}
+      </div>
+      <button 
         on:click={startScan}
         disabled={isScanning || !selectedUrl}
         class="border border-gray-700 hover:border-gray-500 disabled:border-gray-800 disabled:text-gray-600 px-4 py-2 text-xs"

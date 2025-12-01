@@ -6,7 +6,14 @@ const api = {
   windowControls: {
     minimize: () => ipcRenderer.send('window-minimize'),
     maximize: () => ipcRenderer.send('window-maximize'),
-    close: () => ipcRenderer.send('window-close')
+    close: () => ipcRenderer.send('window-close'),
+    toggleMaximize: () => ipcRenderer.send('window-toggle-maximize'),
+    onState: (callback: (state: { isMaximized: boolean; isMinimized: boolean }) => void) => {
+      ipcRenderer.on('window-state', (_, data) => callback(data))
+    },
+    getState: async (): Promise<{ isMaximized: boolean; isMinimized: boolean }> => {
+      return await ipcRenderer.invoke('window-get-state')
+    }
   },
   crawler: {
     startCrawl: (url: string) => ipcRenderer.invoke('start-crawl', url),
