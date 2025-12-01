@@ -145,10 +145,10 @@ export class WebCrawler {
               !this.urlQueue.includes(link) &&
               this.isSameDomain(link)
           )
-          
+
           if (newLinks.length > 0) {
             this.urlQueue.push(...newLinks)
-            
+
             // Notify about newly discovered URLs
             if (this.onUrlsDiscovered) {
               this.onUrlsDiscovered([...this.urlQueue])
@@ -239,7 +239,8 @@ export class WebCrawler {
     try {
       console.log('start loading page: ', url)
       const response = await page.goto(url, {
-        waitUntil: 'domcontentloaded'
+        waitUntil: 'domcontentloaded',
+        timeout: 0
       })
       console.log('stop loading page: ', url)
 
