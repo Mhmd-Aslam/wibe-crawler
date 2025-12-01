@@ -85,10 +85,11 @@ export class WebCrawler {
 
     while (this.urlQueue.length > 0 && this.crawledUrls.size < maxPages) {
       console.log(this.urlQueue);
-      
+
       // Get batch of URLs to crawl
       const batchUrls: string[] = []
       while (batchUrls.length < batchSize && this.urlQueue.length > 0 && this.crawledUrls.size + batchUrls.length < maxPages) {
+        console.log("batch urls: ", batchUrls);
         const url = this.urlQueue.shift()!
         if (!this.crawledUrls.has(url)) {
           batchUrls.push(url)
@@ -96,10 +97,12 @@ export class WebCrawler {
         }
       }
 
+      console.log("Batched urls", batchUrls);
+
       if (batchUrls.length === 0) break
 
       // Crawl batch simultaneously
-      const batchPromises = batchUrls.map(url => 
+      const batchPromises = batchUrls.map(url =>
         this.crawlPage(url).catch(error => ({
           url,
           status: 0,
@@ -112,14 +115,14 @@ export class WebCrawler {
         } as CrawlResult))
       )
 
-      const batchResults = await Promise.all(batchPromises)
+      const batchResults = await Promise.all(batchPromises) as CrawlResult[];
       this.results.push(...batchResults)
 
       // Process all results to add new links to queue
       for (const result of batchResults) {
         if (result.links.length > 0) {
-          const newLinks = result.links.filter(link => 
-            !this.crawledUrls.has(link) && 
+          const newLinks = result.links.filter(link =>
+            !this.crawledUrls.has(link) &&
             !this.urlQueue.includes(link) &&
             this.isSameDomain(link)
           )
@@ -139,7 +142,7 @@ export class WebCrawler {
     return this.results
   }
 
-  private async crawlPage(url: string): Promise<CrawlResult> {
+  private async crawlPage(url: string): Promise<CrawlResult | undefined> {
     if (!this.browser) {
       throw new Error('Browser not initialized')
     }
@@ -148,13 +151,13 @@ export class WebCrawler {
     const pageApiCalls: ApiCall[] = []
     const pageCookies: CookieData[] = []
     const apiDomains = new Set<string>()
-    
+
     // Listen to network requests to capture API calls and domains
     page.on('request', (request) => {
       try {
         const requestUrl = new URL(request.url())
         const isApiCall = this.isApiEndpoint(request.url(), request.method())
-        
+
         if (isApiCall) {
           const apiCall: ApiCall = {
             id: `api_${Math.random().toString(36).substr(2, 9)}`,
@@ -178,7 +181,7 @@ export class WebCrawler {
       try {
         const requestUrl = response.url()
         const isApiCall = this.isApiEndpoint(requestUrl, response.request().method())
-        
+
         if (isApiCall) {
           const existingApiCall = pageApiCalls.find(api => api.endpoint === requestUrl)
           if (existingApiCall) {
@@ -190,18 +193,21 @@ export class WebCrawler {
         // Ignore errors
       }
     })
-    
+
     try {
-      const response = await page.goto(url, { 
+      console.log("start loading page: ", url);
+      const response = await page.goto(url, {
         waitUntil: 'domcontentloaded'
       })
-      
+      console.log("stop loading page: ", url);
+
       if (!response) {
         throw new Error('Failed to load page')
       }
 
       const title = await page.title()
-      
+      console.log(title);
+
       // Extract all links
       const links = await page.evaluate(() => {
         const anchors = Array.from(document.querySelectorAll('a[href]'))
@@ -219,13 +225,15 @@ export class WebCrawler {
         })
       })
 
+      console.log(links);
+
       // Extract all forms
       const forms = await page.evaluate((currentUrl) => {
         const formElements = Array.from(document.querySelectorAll('form'))
         return formElements.map((form, index) => {
           const action = form.action || currentUrl
           const method = form.method.toLowerCase() || 'get'
-          
+
           const inputs = Array.from(form.querySelectorAll('input, textarea, select'))
           const fields = inputs.map(input => {
             const element = input as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -294,8 +302,11 @@ export class WebCrawler {
         cookies: pageCookies
       }
 
-    } finally {
+    }catch(error){
+      console.error(error);
+    }finally {
       await page.close()
+      return;
     }
   }
 
@@ -314,7 +325,16 @@ export class WebCrawler {
     try {
       const urlObj = new URL(url)
       const baseUrlObj = new URL(this.baseUrl)
-      return urlObj.hostname === baseUrlObj.hostname
+      
+      const getMainDomain = (hostname: string): string => {
+        const parts = hostname.split('.')
+        if (parts.length >= 2) {
+          return parts.slice(-2).join('.')
+        }
+        return hostname
+      }
+      
+      return getMainDomain(urlObj.hostname) === getMainDomain(baseUrlObj.hostname)
     } catch {
       return false
     }
@@ -340,7 +360,7 @@ export class WebCrawler {
     try {
       const urlObj = new URL(url)
       const path = urlObj.pathname.toLowerCase()
-      
+
       // Common API patterns
       const apiPatterns = [
         '/api/',
@@ -352,16 +372,16 @@ export class WebCrawler {
         '.json',
         '.xml'
       ]
-      
+
       // Check if URL contains API patterns
-      const hasApiPattern = apiPatterns.some(pattern => 
+      const hasApiPattern = apiPatterns.some(pattern =>
         path.includes(pattern) || url.includes(pattern)
       )
-      
+
       // Check HTTP methods typically used for APIs
       const isApiMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ||
                           (method === 'GET' && hasApiPattern)
-      
+
       // Check content type headers would be ideal but not available in request event
       return hasApiPattern || isApiMethod
     } catch {
@@ -395,11 +415,11 @@ export class WebCrawler {
     }
 
     const page = await this.browser!.newPage()
-    
+
     try {
       // Navigate to the page containing the form
       await page.goto(formData.url, { waitUntil: 'domcontentloaded' })
-      
+
       // Fill the form fields
       for (const [fieldName, fieldValue] of Object.entries(formData.fields)) {
         try {
@@ -413,12 +433,12 @@ export class WebCrawler {
 
       // Submit the form and capture the response
       const [response] = await Promise.all([
-        page.waitForResponse(response => 
+        page.waitForResponse(response =>
           response.url().includes(new URL(formData.action, formData.url).pathname) ||
           response.url() === formData.action
         ),
         page.evaluate((action) => {
-          const form = Array.from(document.querySelectorAll('form')).find(f => 
+          const form = Array.from(document.querySelectorAll('form')).find(f =>
             f.action.includes(action) || f.action === action
           )
           if (form) {
