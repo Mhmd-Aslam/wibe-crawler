@@ -11,7 +11,7 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: "hidden",
+    titleBarStyle: 'hidden',
     // titleBarOverlay: {
     //   color: '#00000000',
     //   symbolColor: '#ffffff',
@@ -69,35 +69,46 @@ app.whenReady().then(() => {
       await crawler.close()
     }
 
-    crawler = new WebCrawler((currentUrl: string, results: CrawlResult[]) => {
-      // Send progress updates to renderer
-      const window = BrowserWindow.getFocusedWindow()
-      if (window) {
-        window.webContents.send('crawl-progress', {
-          currentUrl,
-          results: results.map(r => ({
-            url: r.url,
-            status: r.status,
-            title: r.title,
-            forms: r.forms,
-            apiCalls: r.apiCalls,
-            cookies: r.cookies,
-            error: r.error
-          })),
-          domains: crawler!.getAllDiscoveredDomains(),
-          allApiCalls: crawler!.getAllApiCalls(),
-          allCookies: crawler!.getAllCookies()
-        })
+    crawler = new WebCrawler(
+      (currentUrl: string, results: CrawlResult[]) => {
+        // Send progress updates to renderer
+        const window = BrowserWindow.getFocusedWindow()
+        if (window) {
+          window.webContents.send('crawl-progress', {
+            currentUrl,
+            results: results.map((r) => ({
+              url: r.url,
+              status: r.status,
+              title: r.title,
+              forms: r.forms,
+              apiCalls: r.apiCalls,
+              cookies: r.cookies,
+              error: r.error
+            })),
+            domains: crawler!.getAllDiscoveredDomains(),
+            allApiCalls: crawler!.getAllApiCalls(),
+            allCookies: crawler!.getAllCookies()
+          })
+        }
+      },
+      (urls: string[]) => {
+        // Send URL discovery updates to renderer
+        const window = BrowserWindow.getFocusedWindow()
+        if (window) {
+          window.webContents.send('urls-discovered', {
+            urls
+          })
+        }
       }
-    })
+    )
 
     try {
-      console.log("start crawl");
+      console.log('start crawl')
       const results = await crawler.crawl(url, 10000)
       const window = BrowserWindow.getFocusedWindow()
       if (window) {
         window.webContents.send('crawl-complete', {
-          results: results.map(r => ({
+          results: results.map((r) => ({
             url: r.url,
             status: r.status,
             title: r.title,
@@ -113,7 +124,7 @@ app.whenReady().then(() => {
       }
       return { success: true, results }
     } catch (error) {
-      console.error(error);
+      console.error(error)
       const window = BrowserWindow.getFocusedWindow()
       if (window) {
         window.webContents.send('crawl-error', {
@@ -129,7 +140,9 @@ app.whenReady().then(() => {
       // Signal cooperative stop first
       try {
         crawler.stop()
-      } catch {}
+      } catch (err) {
+        console.error(err)
+      }
       await crawler.close()
       crawler = null
     }

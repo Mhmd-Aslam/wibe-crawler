@@ -2,12 +2,13 @@
 <script lang="ts">
   import TitleBar from './components/TitleBar.svelte'
   import { onMount, onDestroy } from 'svelte'
-  
+
   let selectedUrl = ''
   let isScanning = false
   let showResults = false
   let selectedCrawledUrl = ''
   let crawledUrls: string[] = []
+  let discoveredUrls: string[] = []
   let crawlStatus = ''
   let allForms: any[] = []
   let allApiCalls: any[] = []
@@ -16,7 +17,7 @@
   let formData: Record<string, string> = {}
   let formResponse: any = null
   let isSubmittingForm = false
-  
+
   const vulnerabilities = [
     { id: 1, name: 'SQL Injection', severity: 'critical', description: 'Login form parameter vulnerable to SQL injection', size: 'large' },
     { id: 2, name: 'XSS', severity: 'high', description: 'Reflected XSS in search parameter', size: 'medium' },
@@ -27,16 +28,16 @@
     { id: 7, name: 'Clickjacking', severity: 'low', description: 'Missing X-Frame-Options', size: 'small' },
     { id: 8, name: 'Path Traversal', severity: 'high', description: 'Directory traversal in upload', size: 'medium' }
   ]
-  
+
   let reportItems = []
   let activeTargetTab = 'urls'
   let discoveredDomains: string[] = []
-  
 
-  
+
+
   // Statistics
   $: stats = {
-    totalUrls: crawledUrls.length,
+    totalUrls: crawledUrls.length + discoveredUrls.length,
     critical: vulnerabilities.filter(v => v.severity === 'critical').length,
     high: vulnerabilities.filter(v => v.severity === 'high').length,
     medium: vulnerabilities.filter(v => v.severity === 'medium').length,
@@ -55,9 +56,14 @@
         showResults = true
       })
 
+      window.api.crawler.onUrlsDiscovered((data) => {
+        discoveredUrls = data.urls || []
+      })
+
       window.api.crawler.onComplete((data) => {
         crawlStatus = 'Crawl complete'
         crawledUrls = data.results.map((r: any) => r.url)
+        discoveredUrls = []
         discoveredDomains = data.domains || []
         allForms = data.results.flatMap((r: any) => r.forms || [])
         allApiCalls = data.allApiCalls || []
@@ -78,13 +84,14 @@
       window.api.crawler.removeAllListeners()
     }
   })
-  
+
   async function startScan() {
     if (!selectedUrl) return
-    
+
     isScanning = true
     crawlStatus = 'Starting crawl...'
     crawledUrls = []
+    discoveredUrls = []
     discoveredDomains = []
     allForms = []
     allApiCalls = []
@@ -92,7 +99,7 @@
     selectedForm = null
     formResponse = null
     showResults = true
-    
+
     try {
       await window.api.crawler.startCrawl(selectedUrl)
     } catch (error) {
@@ -100,7 +107,7 @@
       isScanning = false
     }
   }
-  
+
   async function stopScan() {
     try {
       crawlStatus = 'Stopping...'
@@ -111,21 +118,21 @@
       crawlStatus = `Stop failed: ${error}`
     }
   }
-  
+
   function selectUrl(url) {
     selectedCrawledUrl = url
   }
-  
+
   function addToReport(vuln) {
     if (!reportItems.find(item => item.id === vuln.id)) {
       reportItems = [...reportItems, vuln]
     }
   }
-  
+
   function removeFromReport(id) {
     reportItems = reportItems.filter(item => item.id !== id)
   }
-  
+
   function exportReport() {
     alert('Report exported!')
   }
@@ -184,7 +191,7 @@
 
 <div class="flex flex-col bg-black w-screen h-screen text-white text-sm">
   <TitleBar />
-  
+
   <!-- Header Section -->
   <div class="p-4 border-b border-gray-800">
     <div class="flex items-center justify-between mb-3">
@@ -203,12 +210,12 @@
       <div class="mb-2 text-xs text-gray-400">{crawlStatus}</div>
     {/if}
     <div class="flex gap-2">
-      <input 
+      <input
         bind:value={selectedUrl}
-        placeholder="https://example.com" 
+        placeholder="https://example.com"
         class="flex-1 bg-transparent border border-gray-700 p-2 px-3 text-xs outline-none focus:border-gray-500"
       />
-      <button 
+      <button
         on:click={startScan}
         disabled={isScanning || !selectedUrl}
         class="border border-gray-700 hover:border-gray-500 disabled:border-gray-800 disabled:text-gray-600 px-4 py-2 text-xs"
@@ -225,7 +232,7 @@
       {/if}
     </div>
   </div>
-  
+
   <div class="flex-1 flex overflow-hidden">
     <!-- Main Content Area -->
     <div class="flex-1 p-3 overflow-y-auto">
@@ -243,7 +250,7 @@
               on:click={() => activeTargetTab = 'urls'}
               class="px-4 py-2 text-xs {activeTargetTab === 'urls' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-gray-300'}"
             >
-              URLs ({crawledUrls.length})
+              URLs ({crawledUrls.length}{#if discoveredUrls.length > 0}+{discoveredUrls.length}{/if})
             </button>
             <button
               on:click={() => activeTargetTab = 'domains'}
@@ -282,7 +289,7 @@
               <div class="flex justify-between items-center mb-3">
                 <h2 class="text-sm font-medium text-white">Crawled URLs</h2>
               </div>
-              <div class="space-y-1">
+              <div class="space-y-1 mb-4">
                 {#each crawledUrls as url}
                   <button
                     on:click={() => selectUrl(url)}
@@ -292,6 +299,20 @@
                   </button>
                 {/each}
               </div>
+
+              {#if discoveredUrls.length > 0}
+                <div class="flex justify-between items-center mb-3 mt-4 pt-4 border-t border-gray-800">
+                  <h2 class="text-sm font-medium text-white">Discovered URLs (Pending)</h2>
+                  <span class="text-xs text-gray-500">{discoveredUrls.length} in queue</span>
+                </div>
+                <div class="space-y-1">
+                  {#each discoveredUrls as url}
+                    <div class="w-full text-left p-2 text-xs border border-gray-800 opacity-60">
+                      <div class="font-mono break-all text-gray-500">{url}</div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             {:else if activeTargetTab === 'domains'}
               <div class="flex justify-between items-center mb-3">
                 <h2 class="text-sm font-medium text-white">Discovered Domains</h2>
@@ -311,7 +332,7 @@
                 <h2 class="text-sm font-medium text-white">Vulnerabilities Found</h2>
                 <div class="text-xs text-gray-400 font-mono">{selectedCrawledUrl}</div>
               </div>
-          
+
           <!-- Minimal Grid -->
           <div class="grid grid-cols-6 gap-2">
             {#each vulnerabilities as vuln}
@@ -452,7 +473,7 @@
       </div>
       {/if}
     </div>
-    
+
     <!-- Right Panel - Report -->
     {#if reportItems.length > 0}
     <div class="w-64 border-l border-gray-800 p-3 overflow-y-auto">
@@ -465,7 +486,7 @@
           Export
         </button>
       </div>
-      
+
       <div class="space-y-2">
         {#each reportItems as item}
           <div class="border-l-2 border-gray-700 pl-2 py-1">
@@ -514,7 +535,7 @@
           {selectedForm.method.toUpperCase()} {selectedForm.action}
         </div>
       </div>
-      
+
       <div class="flex-1 overflow-y-auto">
         <div class="p-4">
           <div class="grid grid-cols-1 gap-4 mb-4">
@@ -557,7 +578,7 @@
               </div>
             {/each}
           </div>
-          
+
           <div class="flex gap-2 mb-4">
             <button
               on:click={submitForm}
@@ -573,11 +594,11 @@
               Cancel
             </button>
           </div>
-          
+
           {#if formResponse}
             <div class="border-t border-gray-700 pt-4">
               <h3 class="text-sm font-medium text-white mb-3">Response</h3>
-              
+
               <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <span class="block text-xs font-medium text-gray-300 mb-1">Status Code</span>
@@ -592,7 +613,7 @@
                   </div>
                 </div>
               </div>
-              
+
               {#if formResponse.error}
                 <div class="mb-4">
                   <span class="block text-xs font-medium text-gray-300 mb-1">Error</span>
@@ -601,7 +622,7 @@
                   </div>
                 </div>
               {/if}
-              
+
               {#if Object.keys(formResponse.headers).length > 0}
                 <div class="mb-4">
                   <span class="block text-xs font-medium text-gray-300 mb-1">Headers</span>
@@ -610,7 +631,7 @@
                   </div>
                 </div>
               {/if}
-              
+
               {#if formResponse.body}
                 <div>
                   <span class="block text-xs font-medium text-gray-300 mb-1">Response Body</span>
