@@ -60,10 +60,15 @@ export class WebCrawler {
   private allApiCalls = new Map<string, ApiCall>()
   private allCookies = new Map<string, CookieData>()
   private onProgress?: (url: string, results: CrawlResult[]) => void
+  private onUrlsDiscovered?: (urls: string[]) => void
   private stopped: boolean = false
 
-  constructor(onProgress?: (url: string, results: CrawlResult[]) => void) {
+  constructor(
+    onProgress?: (url: string, results: CrawlResult[]) => void,
+    onUrlsDiscovered?: (urls: string[]) => void
+  ) {
     this.onProgress = onProgress
+    this.onUrlsDiscovered = onUrlsDiscovered
   }
 
   async init(): Promise<void> {
@@ -140,7 +145,15 @@ export class WebCrawler {
               !this.urlQueue.includes(link) &&
               this.isSameDomain(link)
           )
-          this.urlQueue.push(...newLinks)
+          
+          if (newLinks.length > 0) {
+            this.urlQueue.push(...newLinks)
+            
+            // Notify about newly discovered URLs
+            if (this.onUrlsDiscovered) {
+              this.onUrlsDiscovered([...this.urlQueue])
+            }
+          }
         }
 
         // Notify progress for each completed URL

@@ -28,10 +28,14 @@ const api = {
     onError: (callback: (data: any) => void) => {
       ipcRenderer.on('crawl-error', (_, data) => callback(data))
     },
+    onUrlsDiscovered: (callback: (data: any) => void) => {
+      ipcRenderer.on('urls-discovered', (_, data) => callback(data))
+    },
     removeAllListeners: () => {
       ipcRenderer.removeAllListeners('crawl-progress')
       ipcRenderer.removeAllListeners('crawl-complete')
       ipcRenderer.removeAllListeners('crawl-error')
+      ipcRenderer.removeAllListeners('urls-discovered')
     }
   }
 }
