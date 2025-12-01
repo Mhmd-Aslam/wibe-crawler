@@ -124,6 +124,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('stop-crawl', async () => {
     if (crawler) {
+      // Signal cooperative stop first
+      try {
+        crawler.stop()
+      } catch {}
       await crawler.close()
       crawler = null
     }

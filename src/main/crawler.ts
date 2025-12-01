@@ -60,6 +60,7 @@ export class WebCrawler {
   private allApiCalls = new Map<string, ApiCall>()
   private allCookies = new Map<string, CookieData>()
   private onProgress?: (url: string, results: CrawlResult[]) => void
+  private stopped: boolean = false
 
   constructor(onProgress?: (url: string, results: CrawlResult[]) => void) {
     this.onProgress = onProgress
@@ -81,14 +82,15 @@ export class WebCrawler {
     this.urlQueue = [startUrl]
     this.crawledUrls.clear()
     this.results = []
+    this.stopped = false
     this.discoveredDomains.clear()
 
-    while (this.urlQueue.length > 0 && this.crawledUrls.size < maxPages) {
+    while (!this.stopped && this.urlQueue.length > 0 && this.crawledUrls.size < maxPages) {
       console.log(this.urlQueue);
       
       // Get batch of URLs to crawl
       const batchUrls: string[] = []
-      while (batchUrls.length < batchSize && this.urlQueue.length > 0 && this.crawledUrls.size + batchUrls.length < maxPages) {
+      while (!this.stopped && batchUrls.length < batchSize && this.urlQueue.length > 0 && this.crawledUrls.size + batchUrls.length < maxPages) {
         const url = this.urlQueue.shift()!
         if (!this.crawledUrls.has(url)) {
           batchUrls.push(url)
@@ -133,6 +135,7 @@ export class WebCrawler {
       }
 
       // Small delay between batches to be respectful
+      if (this.stopped) break
       await this.delay(200)
     }
 
@@ -142,6 +145,20 @@ export class WebCrawler {
   private async crawlPage(url: string): Promise<CrawlResult> {
     if (!this.browser) {
       throw new Error('Browser not initialized')
+    }
+
+    if (this.stopped) {
+      return {
+        url,
+        status: 0,
+        title: undefined,
+        links: [],
+        domains: [],
+        forms: [],
+        apiCalls: [],
+        cookies: [],
+        error: 'Stopped'
+      }
     }
 
     const page = await this.browser.newPage()
@@ -458,5 +475,9 @@ export class WebCrawler {
       await this.browser.close()
       this.browser = null
     }
+  }
+
+  public stop(): void {
+    this.stopped = true
   }
 }
