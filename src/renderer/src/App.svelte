@@ -1,7 +1,22 @@
 <script lang="ts">
   import TitleBar from './components/TitleBar.svelte'
   import { onMount, onDestroy } from 'svelte'
-  
+
+  // Utilities: inject a <base> into HTML so relative URLs in the rendered page resolve
+  function withBase(html: string, baseHref: string | undefined): string {
+    if (!html) return ''
+    if (!baseHref) return html
+    // If there's already a <base>, keep as-is
+    if (/<base\s+href=/i.test(html)) return html
+    // Insert <base> right after <head>
+    const baseTag = `<base href="${baseHref}">`
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/<head([^>]*)>/i, (_m, g1) => `<head${g1}>${baseTag}`)
+    }
+    // If no <head>, prepend one
+    return `<head>${baseTag}</head>` + html
+  }
+
   let selectedUrl = 'https://'
   let isScanning = false
   let showResults = false
@@ -753,13 +768,29 @@
               {/if}
 
               {#if formResponse.body}
-                <div>
+                <div class="mb-4">
                   <span class="block text-xs font-medium text-gray-300 mb-1">Response Body</span>
-                  <div
-                    class="bg-gray-800 border border-gray-600 text-xs p-3 rounded max-h-64 overflow-y-auto"
-                  >
-                    <pre
-                      class="text-gray-300 font-mono whitespace-pre-wrap">{formResponse.body}</pre>
+                  <div class="bg-gray-800 border border-gray-600 text-xs p-3 rounded max-h-64 overflow-y-auto">
+                    <pre class="text-gray-300 font-mono whitespace-pre-wrap">{formResponse.body}</pre>
+                  </div>
+                </div>
+              {/if}
+
+              {#if formResponse.html}
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="block text-xs font-medium text-gray-300">Rendered Page</span>
+                    {#if formResponse.finalUrl}
+                      <a href={formResponse.finalUrl} target="_blank" class="text-[10px] text-blue-400 hover:text-blue-300 underline">Open in browser</a>
+                    {/if}
+                  </div>
+                  <div class="bg-gray-900 border border-gray-700 rounded overflow-hidden">
+                    <iframe
+                      title="Submitted page preview"
+                      srcdoc={withBase(formResponse.html, formResponse.finalUrl)}
+                      sandbox="allow-scripts allow-forms allow-same-origin"
+                      class="w-full h-96 bg-white"
+                    ></iframe>
                   </div>
                 </div>
               {/if}
