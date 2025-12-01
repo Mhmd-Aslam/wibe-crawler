@@ -92,7 +92,8 @@ app.whenReady().then(() => {
     })
 
     try {
-      const results = await crawler.crawl(url)
+      console.log("start crawl");
+      const results = await crawler.crawl(url, 10000)
       const window = BrowserWindow.getFocusedWindow()
       if (window) {
         window.webContents.send('crawl-complete', {
@@ -112,6 +113,7 @@ app.whenReady().then(() => {
       }
       return { success: true, results }
     } catch (error) {
+      console.error(error);
       const window = BrowserWindow.getFocusedWindow()
       if (window) {
         window.webContents.send('crawl-error', {
@@ -144,9 +146,9 @@ app.whenReady().then(() => {
       const result = await crawler.submitForm(formData)
       return { success: true, result }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   })
