@@ -2,6 +2,7 @@
   export let activeTab
   export let discoveredUrlsCount = 0
   export let formsCount = 0
+  export let assetsCount = 0
   export let apiCallsCount = 0
   export let cookiesCount = 0
   export let domainsCount = 0
@@ -13,6 +14,7 @@
     { id: 'domains', label: 'Domains', showCount: false, count: domainsCount },
     { id: 'vulnerabilities', label: 'Vulnerabilities', showCount: false },
     { id: 'forms', label: 'Forms', showCount: false, count: formsCount },
+    { id: 'assets', label: 'Assets', showCount: false, count: assetsCount },
     { id: 'apiCalls', label: 'API Calls', showCount: false, count: apiCallsCount },
     { id: 'cookies', label: 'Cookies', showCount: false, count: cookiesCount },
     { id: 'emails', label: 'Emails', showCount: false, count: emailsCount }
@@ -54,6 +56,17 @@
       : 'text-gray-400 hover:text-white'}"
   >
     Forms
+  </button>
+  <button
+    on:click={() => onTabChange('assets')}
+    class="px-4 py-2 text-xs {activeTab === 'assets'
+      ? 'border-b-2 border-blue-500 text-white'
+      : 'text-gray-400 hover:text-white'}"
+  >
+    Assets
+    {#if assetsCount > 0}
+      <span class="ml-1 text-gray-500">({assetsCount})</span>
+    {/if}
   </button>
   <button
     on:click={() => onTabChange('apiCalls')}

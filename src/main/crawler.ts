@@ -48,6 +48,7 @@ export interface CrawlResult {
   apiCalls: ApiCall[]
   cookies: CookieData[]
   emails: string[]
+  assets?: Record<string, string[]>
   error?: string
 }
 
@@ -61,6 +62,7 @@ export class WebCrawler {
   private allApiCalls = new Map<string, ApiCall>()
   private allCookies = new Map<string, CookieData>()
   private allEmails = new Set<string>()
+  private allAssets = new Map<string, Set<string>>()
   private onProgress?: (url: string, results: CrawlResult[]) => void
   private onUrlsDiscovered?: (urls: string[]) => void
   private stopped: boolean = false
@@ -131,6 +133,8 @@ export class WebCrawler {
               forms: [],
               apiCalls: [],
               cookies: [],
+              emails: [],
+              assets: {},
               error: error instanceof Error ? error.message : 'Unknown error'
             }) as CrawlResult
         )
@@ -188,6 +192,8 @@ export class WebCrawler {
         forms: [],
         apiCalls: [],
         cookies: [],
+        emails: [],
+        assets: {},
         error: 'Stopped'
       }
     }
@@ -342,6 +348,51 @@ export class WebCrawler {
         .filter((link) => link && this.isSameDomain(link))
         .filter((link, index, arr) => arr.indexOf(link) === index) // Remove duplicates
 
+      // Extract assets from the page
+      const pageAssets = await page.evaluate(() => {
+        const urls = new Set<string>()
+        const push = (u?: string | null) => {
+          if (u) {
+            try {
+              const abs = new URL(u, window.location.href).href
+              urls.add(abs)
+            } catch {
+              /* ignore invalid url */
+            }
+          }
+        }
+        // Images
+        Array.from(document.images).forEach((img) => push(img.src))
+        // Scripts
+        Array.from(document.querySelectorAll('script[src]')).forEach((s) =>
+          push((s as HTMLScriptElement).src)
+        )
+        // Stylesheets
+        Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).forEach((l) =>
+          push((l as HTMLLinkElement).href)
+        )
+        // Media sources
+        Array.from(document.querySelectorAll('video, audio, source')).forEach((m) => {
+          const el = m as HTMLMediaElement & { src?: string }
+          // @ts-ignore
+          push(el.src)
+        })
+        // Downloadable anchors
+        Array.from(document.querySelectorAll('a[href]')).forEach((a) => push((a as HTMLAnchorElement).href))
+        return Array.from(urls)
+      })
+
+      const categorized: Record<string, string[]> = {}
+      for (const u of pageAssets) {
+        const cat = this.categorizeAsset(u)
+        if (cat) {
+          if (!categorized[cat]) categorized[cat] = []
+          categorized[cat].push(u)
+          if (!this.allAssets.has(cat)) this.allAssets.set(cat, new Set<string>())
+          this.allAssets.get(cat)!.add(u)
+        }
+      }
+
       // Extract emails from page content
       const pageEmails = await page.evaluate(() => {
         const emailRegex = /[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
@@ -364,7 +415,8 @@ export class WebCrawler {
         forms,
         apiCalls: pageApiCalls,
         cookies: pageCookies,
-        emails: Array.from(pageEmailsSet)
+        emails: Array.from(pageEmailsSet),
+        assets: categorized
       }
     } catch (error) {
       console.error(error)
@@ -424,6 +476,14 @@ export class WebCrawler {
     return Array.from(this.allEmails)
   }
 
+  getAllAssets(): Record<string, string[]> {
+    const out: Record<string, string[]> = {}
+    for (const [cat, set] of this.allAssets.entries()) {
+      out[cat] = Array.from(set)
+    }
+    return out
+  }
+
   private isApiEndpoint(url: string, method: string): boolean {
     try {
       const urlObj = new URL(url)
@@ -455,6 +515,22 @@ export class WebCrawler {
       return params.length > 0 ? params.join(', ') : 'none'
     } catch {
       return 'none'
+    }
+  }
+
+  private categorizeAsset(url: string): string | null {
+    try {
+      const u = new URL(url)
+      const path = u.pathname.toLowerCase()
+      if (/(\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg)$/.test(path)) return 'images'
+      if (/(\.pdf)$/.test(path)) return 'pdfs'
+      if (/(\.css)$/.test(path)) return 'styles'
+      if (/(\.js)$/.test(path)) return 'scripts'
+      if (/(\.mp4|\.webm|\.ogg|\.mp3|\.wav)$/.test(path)) return 'media'
+      if (/(\.doc|\.docx|\.xls|\.xlsx|\.ppt|\.pptx|\.txt|\.csv)$/.test(path)) return 'documents'
+      return null
+    } catch {
+      return null
     }
   }
 

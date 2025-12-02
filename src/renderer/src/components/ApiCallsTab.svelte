@@ -8,7 +8,18 @@
   </div>
   <div class="space-y-2">
     {#each allApiCalls as api}
-      <div class="border border-gray-700 p-3 hover:bg-gray-900">
+      <div
+        class="border border-gray-700 p-3 hover:bg-gray-900 cursor-pointer"
+        role="button"
+        tabindex="0"
+        on:click={() => window.open(api.endpoint, '_blank')}
+        on:keydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            window.open(api.endpoint, '_blank');
+          }
+        }}
+      >
         <div class="flex justify-between items-start mb-2">
           <h3 class="font-medium text-sm text-white break-all">{api.endpoint}</h3>
           <div class="flex gap-2">
