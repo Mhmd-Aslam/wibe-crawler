@@ -203,25 +203,40 @@
 
     try {
       isSubmittingForm = true
-      const result = await window.api.crawler.submitForm({
+      const response = await window.api.crawler.submitForm({
         url: selectedForm.url,
         action: selectedForm.action,
         method: selectedForm.method,
         fields: formData
       })
 
-      formResponse = {
-        error: result.error,
-        status: result.status,
-        headers: result.headers,
-        body: result.body
+      if (response.success) {
+        formResponse = {
+          error: response.result.error,
+          status: response.result.status,
+          headers: response.result.headers,
+          body: response.result.body,
+          html: response.result.html,
+          finalUrl: response.result.finalUrl
+        }
+      } else {
+        formResponse = {
+          error: response.error,
+          status: 0,
+          headers: {},
+          body: '',
+          html: '',
+          finalUrl: ''
+        }
       }
     } catch (error) {
       formResponse = {
         error: error.message,
         status: 0,
         headers: {},
-        body: ''
+        body: '',
+        html: '',
+        finalUrl: ''
       }
     } finally {
       isSubmittingForm = false

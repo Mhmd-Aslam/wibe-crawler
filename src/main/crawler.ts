@@ -494,10 +494,11 @@ export class WebCrawler {
         }, formData.action)
       ])
 
-      console.log(response.status);
+      console.log(response.status());
       const headers: Record<string, string> = response.headers()
 
       const body = await response.text()
+      console.log(body);
       // Capture the resulting page HTML and final URL for rendering
       const html = await page.content()
       const finalUrl = page.url()
