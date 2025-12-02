@@ -12,7 +12,10 @@
   <div class="space-y-1 mb-4">
     {#each crawledUrls as url (url)}
       <button
-        on:click={() => onSelectUrl(url)}
+        on:click={() => {
+          onSelectUrl(url);
+          window.open(url, '_blank');
+        }}
         class="w-full text-left p-2 text-xs border border-gray-800 hover:bg-gray-900 transition-colors {selectedUrl ===
         url
           ? 'bg-gray-900 border-blue-500'
@@ -32,7 +35,18 @@
     </div>
     <div class="space-y-1">
       {#each discoveredUrls as url (url)}
-        <div class="w-full text-left p-2 text-xs border border-gray-800 opacity-60">
+        <div
+          class="w-full text-left p-2 text-xs border border-gray-800 opacity-60 hover:bg-gray-900 cursor-pointer"
+          role="button"
+          tabindex="0"
+          on:click={() => window.open(url, '_blank')}
+          on:keydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              window.open(url, '_blank');
+            }
+          }}
+        >
           <div class="font-mono break-all text-gray-500">{url}</div>
         </div>
       {/each}

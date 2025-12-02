@@ -109,12 +109,14 @@ app.whenReady().then(() => {
               apiCalls: r.apiCalls,
               cookies: r.cookies,
               emails: r.emails,
+              assets: r.assets,
               error: r.error
             })),
             domains: crawler!.getAllDiscoveredDomains(),
             allApiCalls: crawler!.getAllApiCalls(),
             allCookies: crawler!.getAllCookies(),
-            allEmails: crawler!.getAllEmails()
+            allEmails: crawler!.getAllEmails(),
+            allAssets: crawler!.getAllAssets()
           })
         }
       },
@@ -143,12 +145,14 @@ app.whenReady().then(() => {
             apiCalls: r.apiCalls,
             cookies: r.cookies,
             emails: r.emails,
+            assets: r.assets,
             error: r.error
           })),
           domains: crawler.getAllDiscoveredDomains(),
           allApiCalls: crawler.getAllApiCalls(),
           allCookies: crawler.getAllCookies(),
-          allEmails: crawler.getAllEmails()
+          allEmails: crawler.getAllEmails(),
+          allAssets: crawler.getAllAssets()
         })
       }
       return { success: true, results }
