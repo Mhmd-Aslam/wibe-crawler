@@ -17,8 +17,19 @@
     <h2 class="text-sm font-medium text-white">Discovered Domains ({uniqueDomains.length})</h2>
   </div>
   <div class="space-y-1">
-    {#each uniqueDomains as { domain, count }}
-      <div class="border border-gray-700 p-3 hover:bg-gray-900">
+    {#each uniqueDomains as { domain }}
+      <div
+        class="border border-gray-700 p-3 hover:bg-gray-900 cursor-pointer"
+        role="button"
+        tabindex="0"
+        on:click={() => window.open(`https://${domain}`, '_blank')}
+        on:keydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            window.open(`https://${domain}`, '_blank');
+          }
+        }}
+      >
         <div class="flex justify-between items-start mb-2">
           <h3 class="font-medium text-sm text-white">{domain}</h3>
           <span class="text-xs font-mono text-green-400">active</span>
