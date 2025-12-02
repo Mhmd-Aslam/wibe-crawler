@@ -446,6 +446,8 @@ export class WebCrawler {
     status: number
     headers: Record<string, string>
     body: string
+    html: string
+    finalUrl: string
     error?: string
   }> {
     if (!this.browser) {
@@ -492,20 +494,29 @@ export class WebCrawler {
         }, formData.action)
       ])
 
+      console.log(response.status);
       const headers: Record<string, string> = response.headers()
 
       const body = await response.text()
+      // Capture the resulting page HTML and final URL for rendering
+      const html = await page.content()
+      const finalUrl = page.url()
 
       return {
         status: response.status(),
         headers,
-        body
+        body,
+        html,
+        finalUrl
       }
     } catch (error) {
+      console.error(error);
       return {
         status: 0,
         headers: {},
         body: '',
+        html: '',
+        finalUrl: formData.action || formData.url,
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     } finally {

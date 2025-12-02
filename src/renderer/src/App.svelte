@@ -12,7 +12,7 @@
   import ReportSidebar from './components/ReportSidebar.svelte'
   import FormModal from './components/FormModal.svelte'
   import { onMount, onDestroy } from 'svelte'
-  
+
   let isScanning = false
   let showResults = false
   let selectedCrawledUrl = ''

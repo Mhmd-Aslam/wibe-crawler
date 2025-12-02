@@ -13,19 +13,29 @@
   function handleClose() {
     onClose()
   }
+
+  function withBase(html: string, baseHref: string | undefined): string {
+    if (!html) return ''
+    if (!baseHref) return html
+    // If there's already a <base>, keep as-is
+    if (/<base\s+href=/i.test(html)) return html
+    // Insert <base> right after <head>
+    const baseTag = `<base href="${baseHref}">`
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/<head([^>]*)>/i, (_m, g1) => `<head${g1}>${baseTag}`)
+    }
+    // If no <head>, prepend one
+    return `<head>${baseTag}</head>` + html
+  }
 </script>
 
 {#if selectedForm}
   <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div
-      class="bg-gray-900 border border-gray-700 max-w-2xl w-full max-h-[90vh] flex flex-col"
-    >
+    <div class="bg-gray-900 border border-gray-700 max-w-2xl w-full max-h-[90vh] flex flex-col">
       <div class="p-4 border-b border-gray-700">
         <div class="flex justify-between items-center">
           <h2 class="text-sm font-medium text-white">Test Form</h2>
-          <button on:click={handleClose} class="text-gray-400 hover:text-white text-lg">
-            ✕
-          </button>
+          <button on:click={handleClose} class="text-gray-400 hover:text-white text-lg"> ✕ </button>
         </div>
         <div class="text-xs text-gray-400 mt-1">
           Action: {selectedForm.action || 'None'} | Method: {selectedForm.method.toUpperCase()}
@@ -133,9 +143,7 @@
               {#if formResponse.headers && Object.keys(formResponse.headers).length > 0}
                 <div class="mb-4">
                   <span class="block text-xs font-medium text-gray-300 mb-1">Headers</span>
-                  <div
-                    class="px-3 py-2 bg-gray-800 border border-gray-700 text-sm overflow-x-auto"
-                  >
+                  <div class="px-3 py-2 bg-gray-800 border border-gray-700 text-sm overflow-x-auto">
                     <pre class="text-gray-300 font-mono">{JSON.stringify(
                         formResponse.headers,
                         null,
@@ -151,11 +159,34 @@
                   <div
                     class="px-3 py-2 bg-gray-800 border border-gray-700 text-sm overflow-x-auto max-h-64"
                   >
-                    <pre
-                      class="text-gray-300 font-mono">{formResponse.body.substring(0, 1000)}{formResponse.body.length >
-                      1000
-                        ? '...'
-                        : ''}</pre>
+                    <pre class="text-gray-300 font-mono">{formResponse.body.substring(
+                        0,
+                        1000
+                      )}{formResponse.body.length > 1000 ? '...' : ''}</pre>
+                  </div>
+                </div>
+              {/if}
+
+              {#if formResponse.html}
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="block text-xs font-medium text-gray-300">Rendered Page</span>
+                    {#if formResponse.finalUrl}
+                      <a
+                        href={formResponse.finalUrl}
+                        target="_blank"
+                        class="text-[10px] text-blue-400 hover:text-blue-300 underline"
+                        >Open in browser</a
+                      >
+                    {/if}
+                  </div>
+                  <div class="bg-gray-900 border border-gray-700 rounded overflow-hidden">
+                    <iframe
+                      title="Submitted page preview"
+                      srcdoc={withBase(formResponse.html, formResponse.finalUrl)}
+                      sandbox="allow-scripts allow-forms allow-same-origin"
+                      class="w-full h-96 bg-white"
+                    ></iframe>
                   </div>
                 </div>
               {/if}

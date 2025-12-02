@@ -181,6 +181,7 @@ app.whenReady().then(() => {
       const result = await crawler.submitForm(formData)
       return { success: true, result }
     } catch (error) {
+      console.error(error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
