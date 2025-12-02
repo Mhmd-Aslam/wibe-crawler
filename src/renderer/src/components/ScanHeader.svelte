@@ -13,6 +13,11 @@
   let selectedUrl = 'https://'
   let mirrorEl
   let showUrlHint
+  let showAdvanced = false
+  let cookiesInput = ''
+  let localStorageInput = ''
+  let cookiesError = ''
+  let localStorageError = ''
 
   $: prefixWidth = mirrorEl ? mirrorEl.offsetWidth : 0
   $: showUrlHint = selectedUrl === 'https://'
@@ -20,13 +25,66 @@
   function onUrlKeydown(e) {
     if (e.key === 'Enter' && selectedUrl && !isScanning) {
       e.preventDefault()
-      onStartScan(selectedUrl)
+      handleStartScan()
     }
   }
 
   function handleStartScan() {
     if (selectedUrl && !isScanning) {
-      onStartScan(selectedUrl)
+      cookiesError = ''
+      localStorageError = ''
+
+      let cookies = []
+      let localStorage = {}
+
+      if (cookiesInput.trim()) {
+        try {
+          const cookiePairs = cookiesInput.split(';').map(pair => pair.trim()).filter(pair => pair)
+          for (const pair of cookiePairs) {
+            const equalIndex = pair.indexOf('=')
+            if (equalIndex === -1) {
+              cookiesError = 'Invalid cookie format. Use: name1=value1; name2=value2'
+              return
+            }
+            const name = pair.substring(0, equalIndex).trim()
+            const value = pair.substring(equalIndex + 1).trim()
+            if (!name) {
+              cookiesError = 'Cookie name cannot be empty'
+              return
+            }
+            cookies.push({
+              name,
+              value,
+              domain: new URL(selectedUrl).hostname,
+              path: '/'
+            })
+          }
+        } catch (error) {
+          cookiesError = 'Failed to parse cookies'
+          return
+        }
+      }
+
+      if (localStorageInput.trim()) {
+        const lines = localStorageInput.split('\n').filter(line => line.trim())
+        for (const line of lines) {
+          const colonIndex = line.indexOf(':')
+          if (colonIndex === -1) {
+            localStorageError = 'Each line must be in format "Key: Value"'
+            return
+          }
+          const key = line.substring(0, colonIndex).trim()
+          const value = line.substring(colonIndex + 1).trim()
+          if (!key) {
+            localStorageError = 'Key cannot be empty'
+            return
+          }
+          localStorage[key] = value
+        }
+      }
+      console.log(cookies)
+
+      onStartScan(selectedUrl, { cookies, localStorage })
     }
   }
 </script>
@@ -53,9 +111,9 @@
         bind:this={mirrorEl}
         class="invisible absolute top-0 left-3 text-xs whitespace-pre"
       >{selectedUrl}</span>
-      <input 
+      <input
         bind:value={selectedUrl}
-        placeholder="https://example.com" 
+        placeholder="https://example.com"
         class="w-full bg-transparent border border-gray-700 p-2 px-3 text-xs outline-none focus:border-gray-500"
         on:keydown={onUrlKeydown}
       />
@@ -66,7 +124,13 @@
         >example.com</span>
       {/if}
     </div>
-    <button 
+    <button
+      on:click={() => showAdvanced = !showAdvanced}
+      class="border border-gray-700 hover:border-gray-500 px-4 py-2 text-xs"
+    >
+      {showAdvanced ? 'Hide' : 'Advanced'}
+    </button>
+    <button
       on:click={handleStartScan}
       disabled={isScanning || !selectedUrl}
       class="border border-gray-700 hover:border-gray-500 disabled:border-gray-800 disabled:text-gray-600 px-4 py-2 text-xs"
@@ -82,4 +146,38 @@
       </button>
     {/if}
   </div>
+
+  {#if showAdvanced}
+    <div class="mt-3 space-y-3 border-t border-gray-800 pt-3">
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs text-gray-400">Cookies (Cookie header value)</label>
+          {#if cookiesError}
+            <span class="text-xs text-red-400">{cookiesError}</span>
+          {/if}
+        </div>
+        <textarea
+          bind:value={cookiesInput}
+          placeholder="session=abc123; auth_token=xyz789"
+          class="w-full bg-transparent border border-gray-700 p-2 px-3 text-xs outline-none focus:border-gray-500 font-mono resize-none"
+          rows="2"
+        ></textarea>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs text-gray-400">LocalStorage (one per line: Key: Value)</label>
+          {#if localStorageError}
+            <span class="text-xs text-red-400">{localStorageError}</span>
+          {/if}
+        </div>
+        <textarea
+          bind:value={localStorageInput}
+          placeholder="token: xyz789&#10;userId: 123"
+          class="w-full bg-transparent border border-gray-700 p-2 px-3 text-xs outline-none focus:border-gray-500 font-mono resize-none"
+          rows="3"
+        ></textarea>
+      </div>
+    </div>
+  {/if}
 </div>

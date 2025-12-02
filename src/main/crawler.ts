@@ -66,11 +66,14 @@ export class WebCrawler {
   private onProgress?: (url: string, results: CrawlResult[]) => void
   private onUrlsDiscovered?: (urls: string[]) => void
   private stopped: boolean = false
+  private context?: { cookies?: any[]; localStorage?: Record<string, string> }
 
   constructor(
+    context?: { cookies?: any[]; localStorage?: Record<string, string> },
     onProgress?: (url: string, results: CrawlResult[]) => void,
     onUrlsDiscovered?: (urls: string[]) => void
   ) {
+    this.context = context
     this.onProgress = onProgress
     this.onUrlsDiscovered = onUrlsDiscovered
   }
@@ -203,7 +206,17 @@ export class WebCrawler {
     const pageCookies: CookieData[] = []
     const apiDomains = new Set<string>()
 
-    // Listen to network requests to capture API calls and domains
+    // Set cookies if provided
+    if (this.context?.cookies && this.context.cookies.length > 0) {
+      try {
+        console.log(this.context.cookies);
+        await page.setCookie(...this.context.cookies)
+      } catch (error) {
+        console.error('Failed to set cookies:', error)
+      }
+    }
+
+    // Listen to network requests to capture API calls to domains
     page.on('request', (request) => {
       try {
         const requestUrl = new URL(request.url())
@@ -255,6 +268,19 @@ export class WebCrawler {
 
       if (!response) {
         throw new Error('Failed to load page')
+      }
+
+      // Set localStorage if provided
+      if (this.context?.localStorage && Object.keys(this.context.localStorage).length > 0) {
+        try {
+          await page.evaluate((storage) => {
+            for (const [key, value] of Object.entries(storage)) {
+              localStorage.setItem(key, value)
+            }
+          }, this.context.localStorage)
+        } catch (error) {
+          console.error('Failed to set localStorage:', error)
+        }
       }
 
       const title = await page.title()
@@ -553,9 +579,31 @@ export class WebCrawler {
 
     const page = await this.browser!.newPage()
 
+    // Set cookies if provided
+    if (this.context?.cookies && this.context.cookies.length > 0) {
+      try {
+        await page.setCookie(...this.context.cookies)
+      } catch (error) {
+        console.error('Failed to set cookies:', error)
+      }
+    }
+
     try {
       // Navigate to the page containing the form
       await page.goto(formData.url, { waitUntil: 'domcontentloaded' })
+
+      // Set localStorage if provided
+      if (this.context?.localStorage && Object.keys(this.context.localStorage).length > 0) {
+        try {
+          await page.evaluate((storage) => {
+            for (const [key, value] of Object.entries(storage)) {
+              localStorage.setItem(key, value)
+            }
+          }, this.context.localStorage)
+        } catch (error) {
+          console.error('Failed to set localStorage:', error)
+        }
+      }
 
       // Fill the form fields
       for (const [fieldName, fieldValue] of Object.entries(formData.fields)) {
