@@ -16,7 +16,7 @@ const api = {
     }
   },
   crawler: {
-    startCrawl: (url: string) => ipcRenderer.invoke('start-crawl', url),
+    startCrawl: (url: string, context?: any) => ipcRenderer.invoke('start-crawl', url, context),
     stopCrawl: () => ipcRenderer.invoke('stop-crawl'),
     submitForm: (formData: any) => ipcRenderer.invoke('submit-form', formData),
     onProgress: (callback: (data: any) => void) => {

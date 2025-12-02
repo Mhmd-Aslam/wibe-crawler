@@ -86,12 +86,15 @@ app.whenReady().then(() => {
   // Crawler functionality
   let crawler: WebCrawler | null = null
 
-  ipcMain.handle('start-crawl', async (_, url: string) => {
+  ipcMain.handle('start-crawl', async (_, url: string, context?: any) => {
     if (crawler) {
       await crawler.close()
     }
 
+    console.log(context);
+
     crawler = new WebCrawler(
+      context,
       (currentUrl: string, results: CrawlResult[]) => {
         // Send progress updates to renderer
         const window = BrowserWindow.getFocusedWindow()
@@ -127,7 +130,7 @@ app.whenReady().then(() => {
     )
 
     try {
-      console.log('start crawl')
+      console.log('start crawl', context)
       const results = await crawler.crawl(url, 10000)
       const window = BrowserWindow.getFocusedWindow()
       if (window) {
@@ -177,7 +180,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('submit-form', async (_, formData) => {
     if (!crawler) {
-      crawler = new WebCrawler()
+      crawler = new WebCrawler(undefined)
       await crawler.init()
     }
 

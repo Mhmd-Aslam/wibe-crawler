@@ -143,7 +143,7 @@
     }
   })
 
-  async function startScan(url) {
+  async function startScan(url, context = { cookies: [], localStorage: {} }) {
     if (!url || isScanning) return
 
     try {
@@ -158,7 +158,7 @@
       allEmails = []
       crawlStatus = 'Starting scan...'
 
-      await window.api.crawler.startCrawl(url)
+      await window.api.crawler.startCrawl(url, context)
     } catch (error) {
       console.error('Failed to start scan:', error)
       isScanning = false
