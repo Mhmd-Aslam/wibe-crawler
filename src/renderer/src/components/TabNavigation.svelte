@@ -5,6 +5,7 @@
   export let apiCallsCount = 0
   export let cookiesCount = 0
   export let domainsCount = 0
+  export let emailsCount = 0
   export let onTabChange
 
   const tabs = [
@@ -13,7 +14,8 @@
     { id: 'vulnerabilities', label: 'Vulnerabilities', showCount: false },
     { id: 'forms', label: 'Forms', showCount: false, count: formsCount },
     { id: 'apiCalls', label: 'API Calls', showCount: false, count: apiCallsCount },
-    { id: 'cookies', label: 'Cookies', showCount: false, count: cookiesCount }
+    { id: 'cookies', label: 'Cookies', showCount: false, count: cookiesCount },
+    { id: 'emails', label: 'Emails', showCount: false, count: emailsCount }
   ]
 </script>
 
@@ -68,5 +70,13 @@
       : 'text-gray-400 hover:text-white'}"
   >
     Cookies
+  </button>
+  <button
+    on:click={() => onTabChange('emails')}
+    class="px-4 py-2 text-xs {activeTab === 'emails'
+      ? 'border-b-2 border-blue-500 text-white'
+      : 'text-gray-400 hover:text-white'}"
+  >
+    Emails
   </button>
 </div>

@@ -47,6 +47,7 @@ export interface CrawlResult {
   forms: DetectedForm[]
   apiCalls: ApiCall[]
   cookies: CookieData[]
+  emails: string[]
   error?: string
 }
 
@@ -59,6 +60,7 @@ export class WebCrawler {
   private discoveredDomains = new Set<string>()
   private allApiCalls = new Map<string, ApiCall>()
   private allCookies = new Map<string, CookieData>()
+  private allEmails = new Set<string>()
   private onProgress?: (url: string, results: CrawlResult[]) => void
   private onUrlsDiscovered?: (urls: string[]) => void
   private stopped: boolean = false
@@ -93,6 +95,7 @@ export class WebCrawler {
     this.results = []
     this.stopped = false
     this.discoveredDomains.clear()
+    this.allEmails.clear()
 
     while (!this.stopped && this.urlQueue.length > 0 && this.crawledUrls.size < maxPages) {
       console.log(this.urlQueue)
@@ -339,6 +342,19 @@ export class WebCrawler {
         .filter((link) => link && this.isSameDomain(link))
         .filter((link, index, arr) => arr.indexOf(link) === index) // Remove duplicates
 
+      // Extract emails from page content
+      const pageEmails = await page.evaluate(() => {
+        const emailRegex = /[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+        const bodyText = document.body.innerText
+        const matches = bodyText.match(emailRegex) || []
+        return Array.from(new Set(matches)) // Remove duplicates
+      })
+
+      const pageEmailsSet = new Set(pageEmails)
+      pageEmailsSet.forEach((email) => {
+        this.allEmails.add(email)
+      })
+
       return {
         url,
         status: response.status(),
@@ -347,7 +363,8 @@ export class WebCrawler {
         domains: Array.from(apiDomains),
         forms,
         apiCalls: pageApiCalls,
-        cookies: pageCookies
+        cookies: pageCookies,
+        emails: Array.from(pageEmailsSet)
       }
     } catch (error) {
       console.error(error)
@@ -401,6 +418,10 @@ export class WebCrawler {
 
   getAllCookies(): CookieData[] {
     return Array.from(this.allCookies.values())
+  }
+
+  getAllEmails(): string[] {
+    return Array.from(this.allEmails)
   }
 
   private isApiEndpoint(url: string, method: string): boolean {

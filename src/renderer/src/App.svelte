@@ -9,6 +9,7 @@
   import FormsTab from './components/FormsTab.svelte'
   import ApiCallsTab from './components/ApiCallsTab.svelte'
   import CookiesTab from './components/CookiesTab.svelte'
+  import EmailsTab from './components/EmailsTab.svelte'
   import ReportSidebar from './components/ReportSidebar.svelte'
   import FormModal from './components/FormModal.svelte'
   import { onMount, onDestroy } from 'svelte'
@@ -22,6 +23,7 @@
   let allForms = []
   let allApiCalls = []
   let allCookies = []
+  let allEmails = []
   let selectedForm = null
   let formData = {}
   let formResponse = null
@@ -106,6 +108,7 @@
         allForms = data.results.flatMap((r: any) => r.forms || [])
         allApiCalls = data.allApiCalls || []
         allCookies = data.allCookies || []
+        allEmails = data.allEmails || []
         showResults = true
       })
 
@@ -122,6 +125,7 @@
         allForms = data.results.flatMap((r: any) => r.forms || [])
         allApiCalls = data.allApiCalls || []
         allCookies = data.allCookies || []
+        allEmails = data.allEmails || []
         discoveredUrls = []
       })
 
@@ -151,6 +155,7 @@
       allForms = []
       allApiCalls = []
       allCookies = []
+      allEmails = []
       crawlStatus = 'Starting scan...'
 
       await window.api.crawler.startCrawl(url)
@@ -285,6 +290,7 @@
             apiCallsCount={allApiCalls.length}
             cookiesCount={allCookies.length}
             domainsCount={discoveredDomains.length}
+            emailsCount={allEmails.length}
             onTabChange={handleTabChange}
           />
 
@@ -307,6 +313,8 @@
               <ApiCallsTab {allApiCalls} />
             {:else if activeTargetTab === 'cookies'}
               <CookiesTab {allCookies} />
+            {:else if activeTargetTab === 'emails'}
+              <EmailsTab {allEmails} />
             {/if}
           </div>
         </div>

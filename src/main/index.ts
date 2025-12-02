@@ -105,11 +105,13 @@ app.whenReady().then(() => {
               forms: r.forms,
               apiCalls: r.apiCalls,
               cookies: r.cookies,
+              emails: r.emails,
               error: r.error
             })),
             domains: crawler!.getAllDiscoveredDomains(),
             allApiCalls: crawler!.getAllApiCalls(),
-            allCookies: crawler!.getAllCookies()
+            allCookies: crawler!.getAllCookies(),
+            allEmails: crawler!.getAllEmails()
           })
         }
       },
@@ -137,11 +139,13 @@ app.whenReady().then(() => {
             forms: r.forms,
             apiCalls: r.apiCalls,
             cookies: r.cookies,
+            emails: r.emails,
             error: r.error
           })),
           domains: crawler.getAllDiscoveredDomains(),
           allApiCalls: crawler.getAllApiCalls(),
-          allCookies: crawler.getAllCookies()
+          allCookies: crawler.getAllCookies(),
+          allEmails: crawler.getAllEmails()
         })
       }
       return { success: true, results }
