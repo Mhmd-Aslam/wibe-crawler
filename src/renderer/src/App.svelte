@@ -12,6 +12,7 @@
   import EmailsTab from './components/EmailsTab.svelte'
   import ReportSidebar from './components/ReportSidebar.svelte'
   import FormModal from './components/FormModal.svelte'
+  import AssetsTab from './components/AssetsTab.svelte'
   import { onMount, onDestroy } from 'svelte'
 
   let isScanning = false
@@ -24,6 +25,7 @@
   let allApiCalls = []
   let allCookies = []
   let allEmails = []
+  let allAssets: Record<string, string[]> = {}
   let selectedForm = null
   let formData = {}
   let formResponse = null
@@ -94,6 +96,7 @@
 
   // Statistics
   $: totalUrls = crawledUrls.length + discoveredUrls.length
+  $: assetsCount = Object.values(allAssets || {}).reduce((acc: number, arr: any) => acc + (arr?.length || 0), 0)
   $: critical = vulnerabilities.filter((v) => v.severity === 'critical').length
   $: high = vulnerabilities.filter((v) => v.severity === 'high').length
   $: medium = vulnerabilities.filter((v) => v.severity === 'medium').length
@@ -109,6 +112,7 @@
         allApiCalls = data.allApiCalls || []
         allCookies = data.allCookies || []
         allEmails = data.allEmails || []
+        allAssets = data.allAssets || {}
         showResults = true
       })
 
@@ -126,6 +130,7 @@
         allApiCalls = data.allApiCalls || []
         allCookies = data.allCookies || []
         allEmails = data.allEmails || []
+        allAssets = data.allAssets || {} // Set from IPC complete
         discoveredUrls = []
       })
 
@@ -156,6 +161,7 @@
       allApiCalls = []
       allCookies = []
       allEmails = []
+      allAssets = {} // Reset on start
       crawlStatus = 'Starting scan...'
 
       await window.api.crawler.startCrawl(url)
@@ -287,6 +293,7 @@
             activeTab={activeTargetTab}
             discoveredUrlsCount={discoveredUrls.length}
             formsCount={allForms.length}
+            assetsCount={assetsCount}
             apiCallsCount={allApiCalls.length}
             cookiesCount={allCookies.length}
             domainsCount={discoveredDomains.length}
@@ -309,6 +316,8 @@
               <VulnerabilitiesTab {vulnerabilities} onAddToReport={addToReport} />
             {:else if activeTargetTab === 'forms'}
               <FormsTab {allForms} onSelectForm={selectForm} />
+            {:else if activeTargetTab === 'assets'}
+              <AssetsTab {allAssets} />
             {:else if activeTargetTab === 'apiCalls'}
               <ApiCallsTab {allApiCalls} />
             {:else if activeTargetTab === 'cookies'}
