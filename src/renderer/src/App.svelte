@@ -30,6 +30,7 @@
   let formData = {}
   let formResponse = null
   let isSubmittingForm = false
+  let scannedBaseUrl = ''
 
   const vulnerabilities = [
     {
@@ -163,6 +164,7 @@
       allEmails = []
       allAssets = {} // Reset on start
       crawlStatus = 'Starting scan...'
+      scannedBaseUrl = url
 
       await window.api.crawler.startCrawl(url, context)
     } catch (error) {
@@ -309,6 +311,7 @@
                 {discoveredUrls}
                 selectedUrl={selectedCrawledUrl}
                 onSelectUrl={selectUrl}
+                baseUrl={scannedBaseUrl}
               />
             {:else if activeTargetTab === 'domains'}
               <DomainsTab {discoveredDomains} />

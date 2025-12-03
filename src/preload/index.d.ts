@@ -20,12 +20,22 @@ interface CrawlerAPI {
   removeAllListeners: () => void
 }
 
+interface FuzzerAPI {
+  getWordlists: () => Promise<any>
+  startFuzz: (options: any) => Promise<any>
+  stopFuzz: () => Promise<any>
+  onProgress: (callback: (data: any) => void) => void
+  onComplete: (callback: (data: any) => void) => void
+  removeAllListeners: () => void
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
     api: {
       windowControls: WindowControls
       crawler: CrawlerAPI
+      fuzzer: FuzzerAPI
     }
   }
 }

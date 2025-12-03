@@ -37,6 +37,21 @@ const api = {
       ipcRenderer.removeAllListeners('crawl-error')
       ipcRenderer.removeAllListeners('urls-discovered')
     }
+  },
+  fuzzer: {
+    getWordlists: () => ipcRenderer.invoke('get-wordlists'),
+    startFuzz: (options: any) => ipcRenderer.invoke('start-fuzz', options),
+    stopFuzz: () => ipcRenderer.invoke('stop-fuzz'),
+    onProgress: (callback: (data: any) => void) => {
+      ipcRenderer.on('fuzz-progress', (_, data) => callback(data))
+    },
+    onComplete: (callback: (data: any) => void) => {
+      ipcRenderer.on('fuzz-complete', (_, data) => callback(data))
+    },
+    removeAllListeners: () => {
+      ipcRenderer.removeAllListeners('fuzz-progress')
+      ipcRenderer.removeAllListeners('fuzz-complete')
+    }
   }
 }
 
