@@ -28,11 +28,17 @@
       }
 
       window.api.fuzzer.onProgress((result) => {
-        fuzzResults = [...fuzzResults, result]
-        testedPaths++
+        if (isFuzzing) {
+          fuzzResults = [...fuzzResults, result]
+          testedPaths++
+        }
       })
 
       window.api.fuzzer.onComplete(() => {
+        isFuzzing = false
+      })
+
+      window.api.fuzzer.onStopped(() => {
         isFuzzing = false
       })
     }

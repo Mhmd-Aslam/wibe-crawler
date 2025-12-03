@@ -268,6 +268,10 @@ app.whenReady().then(() => {
     if (fuzzer) {
       fuzzer.stop()
       fuzzer = null
+      const window = BrowserWindow.getFocusedWindow()
+      if (window) {
+        window.webContents.send('fuzz-stopped')
+      }
     }
     return { success: true }
   })
