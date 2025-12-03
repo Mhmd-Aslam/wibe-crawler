@@ -48,9 +48,13 @@ const api = {
     onComplete: (callback: (data: any) => void) => {
       ipcRenderer.on('fuzz-complete', (_, data) => callback(data))
     },
+    onStopped: (callback: () => void) => {
+      ipcRenderer.on('fuzz-stopped', () => callback())
+    },
     removeAllListeners: () => {
       ipcRenderer.removeAllListeners('fuzz-progress')
       ipcRenderer.removeAllListeners('fuzz-complete')
+      ipcRenderer.removeAllListeners('fuzz-stopped')
     }
   }
 }

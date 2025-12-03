@@ -26,6 +26,7 @@ interface FuzzerAPI {
   stopFuzz: () => Promise<any>
   onProgress: (callback: (data: any) => void) => void
   onComplete: (callback: (data: any) => void) => void
+  onStopped: (callback: () => void) => void
   removeAllListeners: () => void
 }
 
