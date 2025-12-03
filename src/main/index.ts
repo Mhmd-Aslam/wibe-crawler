@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { WebCrawler, CrawlResult } from './crawler'
+import { DirectoryFuzzer, type FuzzResult, getAvailableWordlists } from './fuzzer'
 
 function createWindow(): void {
   // Create the browser window.
@@ -85,6 +86,7 @@ app.whenReady().then(() => {
 
   // Crawler functionality
   let crawler: WebCrawler | null = null
+  let fuzzer: DirectoryFuzzer | null = null
 
   ipcMain.handle('start-crawl', async (_, url: string, context?: any) => {
     if (crawler) {
@@ -198,6 +200,76 @@ app.whenReady().then(() => {
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
+  })
+
+  // Directory fuzzing functionality
+  ipcMain.handle('get-wordlists', async () => {
+    try {
+      const wordlists = getAvailableWordlists()
+      return { success: true, wordlists }
+    } catch (error) {
+      console.error(error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('start-fuzz', async (_, options: {
+    baseUrl: string
+    wordlist: string
+    extensions: string[]
+    concurrency: number
+  }) => {
+    if (fuzzer) {
+      fuzzer.stop()
+      fuzzer = null
+    }
+
+    try {
+      fuzzer = new DirectoryFuzzer(
+        options.baseUrl,
+        options.wordlist,
+        options.extensions,
+        options.concurrency
+      )
+
+      const window = BrowserWindow.getFocusedWindow()
+
+      fuzzer.fuzz(
+        (result: FuzzResult) => {
+          if (window) {
+            window.webContents.send('fuzz-progress', result)
+          }
+        },
+        (results: FuzzResult[]) => {
+          if (window) {
+            window.webContents.send('fuzz-complete', { results })
+          }
+          fuzzer = null
+        }
+      )
+
+      return {
+        success: true,
+        totalPaths: fuzzer.getWordlistSize()
+      }
+    } catch (error) {
+      console.error(error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('stop-fuzz', async () => {
+    if (fuzzer) {
+      fuzzer.stop()
+      fuzzer = null
+    }
+    return { success: true }
   })
 
   // Window controls
