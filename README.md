@@ -2,34 +2,25 @@
 
 Wibe Crawler is a high-performance, AI-integrated security tool designed for deep web reconnaissance, automated vulnerability scanning, and professional report generation. Built on Electron, Svelte 5, and Puppeteer, it leverages the Groq SDK for context-aware security assessments.
 
-![Dashboard Overview](ss/ss1.png)
-*Discovered URLs panel showing crawled pages*
+<div align="center">
+  <img src="ss/ss1.png" width="400" />
+  <img src="ss/ss2.png" width="400" />
+  <img src="ss/ss3.png" width="400" />
+  <img src="ss/ss4.png" width="400" />
+  <img src="ss/ss5.png" width="400" />
+</div>
 
 ## 🚀 Key Features
 
 - **Intelligent Deep Crawling**: Powered by Puppeteer, it navigates complex web architectures, capturing dynamic content, forms, and client-side interactions.
 - **AI Vulnerability Analysis**: Context-aware security auditing using Groq's LLM (Llama 3.3/8B models) to identify OWASP Top 10 vulnerabilities with concrete proof.
-
-![Vulnerability Analysis](ss/ss2.png)
-*AI-identified vulnerabilities with severity classification*
-
 - **Unified Reconnaissance Dashboard**:
     - **API Discovery**: Automatically maps endpoints, methods, and request/response patterns.
     - **Form Analysis**: Identifies sensitive input fields and potential injection points.
     - **Data Extraction**: Scrapes emails, assets (images, PDFs, documents), and cookies.
 - **Directory Fuzzing**: Integrated brute-force engine for discovering hidden paths and sensitive directories.
 - **Professional PDF Reporting**: Generates enterprise-grade security reports with executive summaries, technical details, and remediation steps.
-
-![PDF Report](ss/ss3.png)
-*Generated PDF report for testphp.vulnweb.com*
-
 - **Multi-Key Management**: Intelligent API key pooling to manage rate limits and maximize AI analysis throughput.
-
-![Detailed Findings](ss/ss4.png)
-*Detailed findings with CVSS and CWE*
-
-![Remediation](ss/ss5.png)
-*Prioritised remediation recommendations from Critical to Low severity*
 
 ## 🛠️ Tech Stack
 
