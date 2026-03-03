@@ -2,8 +2,6 @@
 
 Wibe Crawler is a high-performance, AI-integrated security tool designed for deep web reconnaissance, automated vulnerability scanning, and professional report generation. Built on Electron, Svelte 5, and Puppeteer, it leverages the Groq SDK for context-aware security assessments.
 
-![Dashboard Preview](resources/icon.png)
-
 ## 🚀 Key Features
 
 - **Intelligent Deep Crawling**: Powered by Puppeteer, it navigates complex web architectures, capturing dynamic content, forms, and client-side interactions.
