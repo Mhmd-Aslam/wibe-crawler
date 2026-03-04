@@ -218,8 +218,10 @@ export class VulnerabilityAgent {
   private keyManager: KeyManager
   private clients: Groq[] = []
   private model: string = 'llama-3.3-70b-versatile'
+  private logPath: string
 
   constructor(apiKey?: string, model: string = 'llama-3.3-70b-versatile') {
+    this.logPath = path.join(process.cwd(), 'prompt.log')
     let key = apiKey || process.env.GROQ_API_KEY
 
     // Fallback: Check if key is missing or looks like a placeholder (starts with "your_" or doesn't start with "gsk_")
@@ -294,6 +296,35 @@ export class VulnerabilityAgent {
 
   setModel(model: string): void {
     this.model = model
+  }
+
+  /**
+   * Logs a prompt/response turn to prompt.log
+   */
+  private logTurn(turnType: string, prompt: string, response: string, metadata?: any): void {
+    try {
+      const timestamp = new Date().toISOString()
+      const separator = '='.repeat(80)
+      const logEntry = `
+${separator}
+[${timestamp}] ${turnType}
+${separator}
+
+--- PROMPT ---
+${prompt}
+
+--- RESPONSE ---
+${response}
+
+--- METADATA ---
+${JSON.stringify(metadata || {}, null, 2)}
+
+`
+      
+      fs.appendFileSync(this.logPath, logEntry, 'utf-8')
+    } catch (error) {
+      console.error('[Agent] Failed to log turn:', error)
+    }
   }
 
 
@@ -595,6 +626,14 @@ export class VulnerabilityAgent {
         }
 
         console.log(`Cluster ${clusterIndex + 1} response (first 300 chars):`, response.substring(0, 300))
+        
+        // Log this turn
+        this.logTurn(
+          `VULNERABILITY_ANALYSIS_CLUSTER_${clusterIndex + 1}`,
+          prompt,
+          response,
+          { model: this.model, keyIndex: leasedKey.index, clusterIndex: clusterIndex + 1, totalClusters }
+        )
 
         let parsed: any;
         let jsonString = response;
@@ -929,6 +968,15 @@ export class VulnerabilityAgent {
           })
           
           const content = message.choices[0]?.message?.content || ''
+          
+          // Log this turn
+          this.logTurn(
+            'FULL_REPORT_GENERATION',
+            prompt,
+            content,
+            { model: this.model, keyIndex: leasedKey.index, targetUrl, vulnerabilityCount: vulnerabilities.length }
+          )
+          
           const jsonMatch = content.match(/<report>([\s\S]*?)<\/report>/) || content.match(/\{[\s\S]*\}/)
           
           if (!jsonMatch) {
@@ -1177,18 +1225,30 @@ IMPORTANT: Output ONLY the JSON wrapped in <report> tags. No other text.`
     if (!leasedKey) return false
 
     try {
+      const testPrompt = 'Say "Connected" only.'
       const message = await leasedKey.client.chat.completions.create({
         model: this.model,
         messages: [
           {
             role: 'user',
-            content: 'Say "Connected" only.'
+            content: testPrompt
           }
         ],
         max_tokens: 10
       })
+      
+      const response = message.choices[0]?.message?.content || ''
+      
+      // Log this turn
+      this.logTurn(
+        'CONNECTION_TEST',
+        testPrompt,
+        response,
+        { model: this.model, keyIndex: leasedKey.index }
+      )
+      
       this.keyManager.releaseKey(leasedKey.index)
-      return !!message.choices[0]?.message?.content
+      return !!response
     } catch (error) {
       console.error('Connection test failed:', error)
       this.keyManager.releaseKey(leasedKey.index)

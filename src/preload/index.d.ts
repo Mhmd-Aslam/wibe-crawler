@@ -37,6 +37,29 @@ interface AnalyzerAPI {
   removeAllListeners: () => void
 }
 
+interface BackendAgentAPI {
+  // Configuration
+  setEndpoint: (endpoint: string) => Promise<any>
+  getEndpoint: () => Promise<any>
+  testConnection: () => Promise<any>
+  
+  // Scan operations
+  startScan: (target: string, scanType: 'quick' | 'full' | 'targeted', threadId?: string) => Promise<any>
+  stopScan: () => Promise<any>
+  isActive: () => Promise<any>
+  
+  // Event listeners
+  onScanStarted: (callback: (data: any) => void) => void
+  onScanAborted: (callback: () => void) => void
+  onThinking: (callback: (data: any) => void) => void
+  onToolCall: (callback: (data: any) => void) => void
+  onTodoUpdate: (callback: (data: any) => void) => void
+  onResponse: (callback: (data: any) => void) => void
+  onComplete: (callback: (data: any) => void) => void
+  onError: (callback: (data: any) => void) => void
+  removeAllListeners: () => void
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -45,6 +68,7 @@ declare global {
       crawler: CrawlerAPI
       fuzzer: FuzzerAPI
       analyzer: AnalyzerAPI
+      backendAgent: BackendAgentAPI
     }
   }
 }

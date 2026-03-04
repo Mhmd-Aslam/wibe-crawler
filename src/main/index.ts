@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { WebCrawler, CrawlResult } from './crawler_native'
 import { DirectoryFuzzer, type FuzzResult, getAvailableWordlists } from './fuzzer'
 import { VulnerabilityAgent, CrawledDataSummary } from './agent'
+import { BackendAgent, setBackendApiEndpoint, getBackendApiEndpoint, type ScanType } from './backend_agent'
 
 // ... existing code ...
 
@@ -338,6 +339,136 @@ app.whenReady().then(() => {
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error during report generation' 
       }
+    }
+  })
+
+  // Backend Agent Integration
+  let backendAgent: BackendAgent | null = null
+
+  ipcMain.handle('backend-set-endpoint', async (_, endpoint: string) => {
+    try {
+      setBackendApiEndpoint(endpoint)
+      console.log(`[IPC] Backend endpoint set to: ${endpoint}`)
+      return { success: true, endpoint: getBackendApiEndpoint() }
+    } catch (error) {
+      console.error('Failed to set backend endpoint:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('backend-get-endpoint', async () => {
+    return { success: true, endpoint: getBackendApiEndpoint() }
+  })
+
+  ipcMain.handle('backend-test-connection', async () => {
+    try {
+      if (!backendAgent) {
+        backendAgent = new BackendAgent()
+      }
+      const isConnected = await backendAgent.testConnection()
+      return { success: true, connected: isConnected }
+    } catch (error) {
+      console.error('Backend connection test failed:', error)
+      return {
+        success: false,
+        connected: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('backend-start-scan', async (event, { target, scanType, threadId }: {
+    target: string
+    scanType: ScanType
+    threadId?: string
+  }) => {
+    const sender = event.sender
+
+    try {
+      // Clean up existing agent if any
+      if (backendAgent && backendAgent.isActive()) {
+        console.log('[IPC] Stopping existing backend scan...')
+        backendAgent.stop()
+        backendAgent = null
+      }
+
+      // Create new agent instance
+      backendAgent = new BackendAgent()
+
+      // Set up event listeners
+      backendAgent.on('scan-started', (request) => {
+        sender.send('backend-scan-started', request)
+      })
+
+      backendAgent.on('scan-aborted', () => {
+        sender.send('backend-scan-aborted')
+      })
+
+      backendAgent.on('thinking', (data) => {
+        sender.send('backend-thinking', data)
+      })
+
+      backendAgent.on('tool-call', (data) => {
+        sender.send('backend-tool-call', data)
+      })
+
+      backendAgent.on('todo-update', (data) => {
+        sender.send('backend-todo-update', data)
+      })
+
+      backendAgent.on('response', (data) => {
+        sender.send('backend-response', data)
+      })
+
+      backendAgent.on('complete', (data) => {
+        sender.send('backend-scan-complete', data)
+      })
+
+      backendAgent.on('error', (data) => {
+        sender.send('backend-scan-error', data)
+      })
+
+      // Start the scan (non-blocking)
+      backendAgent.startScan(target, scanType, threadId).catch((error) => {
+        console.error('Backend scan error:', error)
+        sender.send('backend-scan-error', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      })
+
+      return { success: true, message: 'Backend scan started' }
+    } catch (error) {
+      console.error('Failed to start backend scan:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('backend-stop-scan', async () => {
+    try {
+      if (backendAgent) {
+        backendAgent.stop()
+        backendAgent = null
+      }
+      return { success: true, message: 'Backend scan stopped' }
+    } catch (error) {
+      console.error('Failed to stop backend scan:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  ipcMain.handle('backend-is-active', async () => {
+    return {
+      success: true,
+      active: backendAgent ? backendAgent.isActive() : false
     }
   })
 

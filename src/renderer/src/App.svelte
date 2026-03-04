@@ -57,6 +57,11 @@
   let analysisDuration = 0
   let crawlTimer = null
   let analysisTimer = null
+  let toolCallsCompleted = 0
+  let currentToolName = ''
+  let selectedScanType: 'quick' | 'full' | 'targeted' = 'full'
+  let todos: Array<{content: string, status: 'completed' | 'pending' | 'in-progress'}> = []
+  let showTodos = false
 
   let vulnerabilities = []
 
@@ -207,6 +212,138 @@
           isQuotaExhausted = data.exhausted
         })
       }
+
+      // Backend agent event handlers for vulnerability analysis
+      if (window.api?.backendAgent) {
+        window.api.backendAgent.onThinking((data) => {
+          console.log('[Backend] Thinking:', data.action)
+        })
+
+        window.api.backendAgent.onToolCall((data) => {
+          console.log('[Backend] Tool call:', data.tool, data.status)
+          if (isAnalyzing && data.status === 'completed') {
+            toolCallsCompleted++
+            
+            // Format tool name for better display
+            const toolDisplayName = data.tool
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, l => l.toUpperCase())
+            
+            currentToolName = toolDisplayName
+            crawlStatus = `Running ${toolDisplayName}...`
+            
+            // Estimate progress based on tool calls (approximate)
+            analysisProgress = Math.min(95, toolCallsCompleted * 15)
+          }
+        })
+
+        window.api.backendAgent.onTodoUpdate((data) => {
+          console.log('[Backend] Todo update:', data)
+          if (data.todos) {
+            try {
+              let parsedTodos = []
+              
+              if (Array.isArray(data.todos)) {
+                parsedTodos = data.todos
+              } else if (typeof data.todos === 'string') {
+                // Try multiple strategies to extract JSON
+                let jsonString = data.todos
+                
+                // Strategy 1: Direct JSON parse
+                try {
+                  parsedTodos = JSON.parse(jsonString)
+                } catch {
+                  // Strategy 2: Extract JSON array from text like "Updated todo list to [...]"
+                  const arrayMatch = jsonString.match(/\[[\s\S]*\]/)
+                  if (arrayMatch) {
+                    try {
+                      // Handle Python-style single quotes by converting to double quotes
+                      let jsonText = arrayMatch[0]
+                        .replace(/'/g, '"')
+                        .replace(/True/g, 'true')
+                        .replace(/False/g, 'false')
+                        .replace(/None/g, 'null')
+                      
+                      parsedTodos = JSON.parse(jsonText)
+                    } catch (e) {
+                      console.error('[UI] Failed to parse extracted JSON:', e)
+                    }
+                  }
+                  
+                  // Strategy 3: Fallback to line-by-line parsing
+                  if (parsedTodos.length === 0) {
+                    parsedTodos = jsonString
+                      .split('\n')
+                      .filter(t => t.trim() && !t.includes('Updated todo list'))
+                      .map(t => ({ content: t.trim(), status: 'pending' }))
+                  }
+                }
+              }
+              
+              // Ensure all items have content and status
+              if (parsedTodos.length > 0) {
+                todos = parsedTodos.map(t => ({
+                  content: typeof t === 'string' ? t : (t.content || t),
+                  status: typeof t === 'object' ? (t.status || 'pending') : 'pending'
+                }))
+                
+                console.log('[UI] Parsed todos:', todos)
+                
+                // Auto-show todos when they're updated during analysis
+                if (isAnalyzing && todos.length > 0) {
+                  showTodos = true
+                }
+              }
+            } catch (err) {
+              console.error('[UI] Failed to parse todos:', err, data.todos)
+            }
+          }
+        })
+
+        window.api.backendAgent.onResponse((data) => {
+          console.log('[Backend] Response received')
+          // Try to parse vulnerabilities from response
+          try {
+            const content = data.content
+            if (content) {
+              // Look for JSON vulnerability data in the response
+              const vulnerabilityData = parseVulnerabilitiesFromResponse(content)
+              if (vulnerabilityData && vulnerabilityData.length > 0) {
+                vulnerabilities = vulnerabilityData
+                crawlStatus = `Found ${vulnerabilities.length} vulnerabilities`
+              }
+            }
+          } catch (err) {
+            console.error('Failed to parse vulnerabilities from response:', err)
+          }
+        })
+
+        window.api.backendAgent.onComplete((data) => {
+          console.log('[Backend] Scan complete:', data)
+          isAnalyzing = false
+          analysisProgress = 100
+          if (analysisTimer) {
+            clearInterval(analysisTimer)
+            analysisTimer = null
+          }
+          if (vulnerabilities.length > 0) {
+            crawlStatus = `Analysis complete: Found ${vulnerabilities.length} vulnerabilities`
+            activeTargetTab = 'vulnerabilities'
+          } else {
+            crawlStatus = 'Backend analysis complete - no vulnerabilities found'
+          }
+        })
+
+        window.api.backendAgent.onError((data) => {
+          console.error('[Backend] Error:', data.error)
+          isAnalyzing = false
+          if (analysisTimer) {
+            clearInterval(analysisTimer)
+            analysisTimer = null
+          }
+          crawlStatus = `Analysis error: ${data.error}`
+        })
+      }
     }
   })
 
@@ -216,6 +353,9 @@
     }
     if (window.api?.analyzer) {
       window.api.analyzer.removeAllListeners()
+    }
+    if (window.api?.backendAgent) {
+      window.api.backendAgent.removeAllListeners()
     }
   })
 
@@ -412,6 +552,54 @@
   function handleTabChange(tab) {
     activeTargetTab = tab
   }
+
+  // Helper function to parse vulnerabilities from backend response
+  function parseVulnerabilitiesFromResponse(content: string) {
+    try {
+      // Try to extract JSON from various formats
+      let jsonData = null
+      
+      // Look for JSON block in markdown code fence
+      const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+      if (codeBlockMatch) {
+        jsonData = JSON.parse(codeBlockMatch[1])
+      }
+      
+      // Look for plain JSON object/array
+      if (!jsonData) {
+        const jsonMatch = content.match(/\{[\s\S]*\}|\[[\s\S]*\]/)
+        if (jsonMatch) {
+          jsonData = JSON.parse(jsonMatch[0])
+        }
+      }
+
+      if (!jsonData) return null
+
+      // Extract vulnerabilities array
+      let vulnArray = jsonData.vulnerabilities || jsonData
+      if (!Array.isArray(vulnArray)) return null
+
+      // Map to our vulnerability format
+      return vulnArray.map((v) => ({
+        id: v.id || Math.random().toString(36).substr(2, 9),
+        name: v.title || v.name,
+        severity: v.severity,
+        cwe: v.cwe,
+        cvss: v.cvss,
+        description: v.description,
+        recommendation: v.recommendation,
+        affectedAssets: v.affectedAssets || v.affected_assets || [],
+        proof: v.proof,
+        references: v.references || [],
+        location: (v.affectedAssets || v.affected_assets || [])[0] || scannedBaseUrl || '',
+        size: v.severity === 'critical' ? 3 : v.severity === 'high' ? 2 : 1
+      }))
+    } catch (err) {
+      console.error('Failed to parse vulnerabilities:', err)
+      return null
+    }
+  }
+
   async function analyzeVulnerabilities() {
     console.log('analyzeVulnerabilities called. State:', {
       isScanning,
@@ -427,59 +615,35 @@
       isQuotaExhausted = false
       isAnalyzing = true
       analysisDuration = 0
-      crawlStatus = 'Analyzing crawled data with AI...'
+      analysisProgress = 0
+      toolCallsCompleted = 0
+      currentToolName = ''
+      todos = [] // Reset todos
+      vulnerabilities = [] // Reset vulnerabilities
+      crawlStatus = 'Starting AI security analysis...'
 
       const startTime = Date.now()
       analysisTimer = setInterval(() => {
         analysisDuration = Date.now() - startTime
       }, 100)
 
-      const payload = {
-        crawlResults: fullCrawlResults,
-        allApiCalls,
-        allCookies,
-        allEmails,
-        allAssets,
-        discoveredDomains
-        // We could also pass fuzz results if available
+      // Use backend agent instead of local analyzer
+      console.log('[UI] Starting backend agent scan for:', scannedBaseUrl, 'Type:', selectedScanType)
+      const response = await window.api.backendAgent.startScan(
+        scannedBaseUrl,
+        selectedScanType, // Use user-selected scan type
+        `scan-${Date.now()}`
+      )
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to start backend scan')
       }
 
-      const response = await window.api.analyzer.analyzeVulnerabilities(payload)
-
-      if (response.success && response.report) {
-        if (analysisTimer) {
-          clearInterval(analysisTimer)
-          analysisTimer = null
-        }
-        analysisDuration = response.analysisDuration || analysisDuration
-
-        vulnerabilities = response.report.vulnerabilities.map((v) => ({
-          id: v.id || Math.random().toString(36).substr(2, 9),
-          name: v.title,
-          severity: v.severity,
-          cwe: v.cwe,
-          cvss: v.cvss,
-          description: v.description,
-          recommendation: v.recommendation,
-          affectedAssets: v.affectedAssets || [],
-          proof: v.proof,
-          references: v.references || [],
-          location:
-            v.affectedAssets && v.affectedAssets[0] ? v.affectedAssets[0] : scannedBaseUrl || '',
-          // Add size for grid view visualization
-          size: v.severity === 'critical' ? 3 : v.severity === 'high' ? 2 : 1
-        }))
-
-        crawlStatus = `Analysis complete: Found ${vulnerabilities.length} vulnerabilities`
-        activeTargetTab = 'vulnerabilities'
-      } else {
-        console.error('Analysis error:', response.error)
-        crawlStatus = `Analysis error: ${response.error}`
-      }
+      console.log('[UI] Backend scan initiated successfully')
+      // The actual results will come through SSE events handled in onMount
     } catch (error) {
       console.error('Analysis failed:', error)
-      crawlStatus = 'Analysis failed'
-    } finally {
+      crawlStatus = `Analysis error: ${error.message}`
       isAnalyzing = false
       if (analysisTimer) {
         clearInterval(analysisTimer)
@@ -511,6 +675,10 @@
     {crawlDuration}
     {analysisDuration}
     {isLandingPageError}
+    {currentToolName}
+    bind:selectedScanType
+    {todos}
+    bind:showTodos
     onStartScan={startScan}
     onStopScan={stopScan}
     onAnalyze={analyzeVulnerabilities}

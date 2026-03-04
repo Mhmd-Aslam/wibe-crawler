@@ -16,6 +16,12 @@
   export let crawlDuration = 0
   export let analysisDuration = 0
   export let isLandingPageError = false
+  export let currentToolName = ''
+  export let selectedScanType: 'quick' | 'full' | 'targeted' = 'full'
+  export let todos: Array<{content: string, status: 'completed' | 'pending' | 'in-progress'}> = []
+  export let showTodos = false
+  
+  $: completedCount = todos.filter(t => t.status === 'completed').length
 
   let selectedUrl = 'https://'
   let mirrorEl
@@ -156,10 +162,22 @@
   {#if isAnalyzing}
     <div class="mb-2">
       <div class="text-xs text-purple-400 flex items-center gap-1 mb-1.5">
-        <span>Analyzing with AI</span>
+        <span>Analyzing with AI{currentToolName ? `: ${currentToolName}` : ''}</span>
         <span class="loading-dots inline-flex">
           <span>.</span><span>.</span><span>.</span>
         </span>
+        {#if todos.length > 0}
+          <button
+            on:click={() => showTodos = !showTodos}
+            class="ml-2 px-2 py-0.5 bg-purple-900/30 border border-purple-700/50 hover:border-purple-600 text-[10px] font-mono flex items-center gap-1"
+            title="{showTodos ? 'Hide' : 'Show'} task list"
+          >
+            <span>{showTodos ? '\u25bc' : '\u25b6'}</span>
+            <span class="text-green-400">{completedCount}</span>
+            <span class="text-gray-500">/</span>
+            <span class="text-gray-400">{todos.length}</span>
+          </button>
+        {/if}
         <span class="ml-auto font-mono">{Math.round(analysisProgress)}%</span>
       </div>
       <div class="w-full h-1 bg-gray-800 overflow-hidden">
@@ -168,6 +186,32 @@
           style="width: {analysisProgress}%"
         ></div>
       </div>
+      {#if showTodos && todos.length > 0}
+        <div class="mt-2 p-2 bg-gray-900/50 border border-purple-900/50 max-h-40 overflow-y-auto">
+          <div class="text-[10px] text-gray-400 mb-1.5 font-semibold uppercase tracking-wide flex items-center justify-between">
+            <span>Tasks</span>
+            <span class="font-normal text-gray-500">
+              <span class="text-green-400">{completedCount}</span> / {todos.length}
+            </span>
+          </div>
+          <ul class="text-[11px] space-y-1">
+            {#each todos as todo}
+              <li class="flex items-start gap-1.5 group">
+                {#if todo.status === 'completed'}
+                  <span class="text-green-400 shrink-0 mt-0.5 font-bold" title="Completed">✓</span>
+                  <span class="leading-tight text-gray-400 line-through">{todo.content}</span>
+                {:else if todo.status === 'in-progress'}
+                  <span class="text-yellow-400 shrink-0 mt-0.5" title="In Progress">⟳</span>
+                  <span class="leading-tight text-yellow-200">{todo.content}</span>
+                {:else}
+                  <span class="text-gray-600 shrink-0 mt-0.5" title="Pending">○</span>
+                  <span class="leading-tight text-gray-300">{todo.content}</span>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -211,6 +255,16 @@
       {/if}
     </button>
     {#if showResults && !isScanning && !isLandingPageError}
+      <select
+        bind:value={selectedScanType}
+        disabled={isAnalyzing}
+        class="border border-gray-700 bg-transparent hover:border-gray-500 disabled:border-gray-800 disabled:text-gray-600 px-3 py-2 text-xs outline-none cursor-pointer"
+        title="Select scan depth"
+      >
+        <option value="quick" class="bg-gray-900">Quick Scan</option>
+        <option value="full" class="bg-gray-900">Full Scan</option>
+        <option value="targeted" class="bg-gray-900">Targeted Scan</option>
+      </select>
       <button
         on:click={onAnalyze}
         disabled={isAnalyzing}
