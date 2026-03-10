@@ -1,0 +1,391 @@
+<script lang="ts">
+  import TitleBar from './components/TitleBar.svelte'
+  import ScanHeader from './components/ScanHeader.svelte'
+  import EmptyState from './components/EmptyState.svelte'
+  import TabNavigation from './components/TabNavigation.svelte'
+  import UrlsTab from './components/UrlsTab.svelte'
+  import DomainsTab from './components/DomainsTab.svelte'
+  import VulnerabilitiesTab from './components/VulnerabilitiesTab.svelte'
+  import FormsTab from './components/FormsTab.svelte'
+  import ApiCallsTab from './components/ApiCallsTab.svelte'
+  import CookiesTab from './components/CookiesTab.svelte'
+  import EmailsTab from './components/EmailsTab.svelte'
+  import ReportSidebar from './components/ReportSidebar.svelte'
+  import FormModal from './components/FormModal.svelte'
+  import AssetsTab from './components/AssetsTab.svelte'
+  import { onMount, onDestroy } from 'svelte'
+
+  let isScanning = false
+  let isAnalyzing = false
+  let showResults = false
+  let selectedCrawledUrl = ''
+  let crawledUrls = []
+  let fullCrawlResults = []
+  let discoveredUrls = []
+  let crawlStatus = ''
+  let allForms = []
+  let allApiCalls = []
+  let allCookies = []
+  let allEmails = []
+  let allAssets: Record<string, string[]> = {}
+  let selectedForm = null
+  let formData = {}
+  let formResponse = null
+  let isSubmittingForm = false
+  let scannedBaseUrl = ''
+
+  let vulnerabilities = []
+
+  let reportItems = []
+  let activeTargetTab = 'urls'
+  let discoveredDomains = []
+
+  // Statistics
+  $: totalUrls = crawledUrls.length + discoveredUrls.length
+  $: assetsCount = Object.values(allAssets || {}).reduce(
+    (acc: number, arr: any) => acc + (arr?.length || 0),
+    0
+  )
+  $: critical = vulnerabilities.filter((v) => v.severity === 'critical').length
+  $: high = vulnerabilities.filter((v) => v.severity === 'high').length
+  $: medium = vulnerabilities.filter((v) => v.severity === 'medium').length
+  $: low = vulnerabilities.filter((v) => v.severity === 'low').length
+
+  onMount(() => {
+    if (window.api?.crawler) {
+      window.api.crawler.onProgress((data) => {
+        crawlStatus = `Crawling: ${data.currentUrl}`
+        fullCrawlResults = data.results
+        crawledUrls = data.results.map((r: any) => r.url)
+        discoveredDomains = data.domains || []
+        allForms = data.results.flatMap((r: any) => r.forms || [])
+        allApiCalls = data.allApiCalls || []
+        allCookies = data.allCookies || []
+        allEmails = data.allEmails || []
+        allAssets = data.allAssets || {}
+        showResults = true
+      })
+
+      window.api.crawler.onUrlsDiscovered((data) => {
+        discoveredUrls = data.urls || []
+      })
+
+      window.api.crawler.onComplete((data) => {
+        isScanning = false
+        showResults = true
+        crawlStatus = `Completed: ${data.totalUrlsCrawled} URLs crawled`
+        fullCrawlResults = data.results
+        crawledUrls = data.results.map((r: any) => r.url)
+        discoveredDomains = data.domains || []
+        allForms = data.results.flatMap((r: any) => r.forms || [])
+        allApiCalls = data.allApiCalls || []
+        allCookies = data.allCookies || []
+        allEmails = data.allEmails || []
+        allAssets = data.allAssets || {} // Set from IPC complete
+        discoveredUrls = []
+      })
+
+      window.api.crawler.onError((error) => {
+        console.error('Crawler error:', error)
+        isScanning = false
+        crawlStatus = `Error: ${error.message}`
+      })
+    }
+  })
+
+  onDestroy(() => {
+    if (window.api?.crawler) {
+      window.api.crawler.removeAllListeners()
+    }
+  })
+
+  async function startScan(url, context = { cookies: [], localStorage: {} }) {
+    if (!url || isScanning) return
+
+    try {
+      isScanning = true
+      showResults = true
+      crawledUrls = []
+      fullCrawlResults = []
+      discoveredUrls = []
+      discoveredDomains = []
+      allForms = []
+      allApiCalls = []
+      allCookies = []
+      allEmails = []
+      allAssets = {} // Reset on start
+      vulnerabilities = []
+      reportItems = []
+      crawlStatus = 'Starting scan...'
+      scannedBaseUrl = url
+
+      await window.api.crawler.startCrawl(url, context)
+    } catch (error) {
+      console.error('Failed to start scan:', error)
+      isScanning = false
+      crawlStatus = 'Failed to start scan'
+    }
+  }
+
+  async function stopScan() {
+    try {
+      await window.api.crawler.stopCrawl()
+      isScanning = false
+      crawlStatus = 'Scan stopped'
+    } catch (error) {
+      console.error('Failed to stop scan:', error)
+    }
+  }
+
+  function selectUrl(url) {
+    selectedCrawledUrl = url
+  }
+
+  function addToReport(vuln) {
+    if (!reportItems.find((item) => item.id === vuln.id)) {
+      reportItems = [...reportItems, vuln]
+    }
+  }
+
+  function removeFromReport(id) {
+    reportItems = reportItems.filter((item) => item.id !== id)
+  }
+
+  async function exportReport() {
+    if (vulnerabilities.length === 0 && fullCrawlResults.length === 0) return
+
+    try {
+      crawlStatus = 'Generating detailed report...'
+      const response = await window.api.analyzer.generateReport({
+        vulnerabilities: vulnerabilities.map((v) => ({
+          id: v.id,
+          title: v.name, // Map back to title for backend
+          severity: v.severity,
+          description: v.description,
+          recommendation: v.recommendation,
+          affectedAssets: v.affectedAssets,
+          type: 'Security Vulnerability', // Default type
+          location: v.affectedAssets[0] || scannedBaseUrl
+        })),
+        data: {
+          crawlResults: fullCrawlResults,
+          allApiCalls,
+          allCookies,
+          allEmails,
+          allAssets,
+          discoveredDomains
+        },
+        url: scannedBaseUrl
+      })
+
+      if (response.success && response.report) {
+        console.log('Report generated:', response.report)
+        // For now, we just show success
+        crawlStatus = `Report generated successfully at ${new Date().toLocaleTimeString()}`
+      } else {
+        console.error('Report generation error:', response.error)
+        crawlStatus = `Report generation failed: ${response.error}`
+      }
+    } catch (error) {
+      console.error('Report generation failed:', error)
+      crawlStatus = `Report generation failed: ${error.message}`
+    }
+  }
+
+  function selectForm(form) {
+    selectedForm = form
+    formData = {}
+    formResponse = null
+    form.fields.forEach((field: any) => {
+      formData[field.name] = field.value || ''
+    })
+  }
+
+  async function submitForm() {
+    if (!selectedForm) return
+
+    try {
+      isSubmittingForm = true
+      const response = await window.api.crawler.submitForm({
+        url: selectedForm.url,
+        action: selectedForm.action,
+        method: selectedForm.method,
+        fields: formData
+      })
+
+      if (response.success) {
+        formResponse = {
+          error: response.result.error,
+          status: response.result.status,
+          headers: response.result.headers,
+          body: response.result.body,
+          html: response.result.html,
+          finalUrl: response.result.finalUrl
+        }
+      } else {
+        formResponse = {
+          error: response.error,
+          status: 0,
+          headers: {},
+          body: '',
+          html: '',
+          finalUrl: ''
+        }
+      }
+    } catch (error) {
+      formResponse = {
+        error: error.message,
+        status: 0,
+        headers: {},
+        body: '',
+        html: '',
+        finalUrl: ''
+      }
+    } finally {
+      isSubmittingForm = false
+    }
+  }
+
+  function closeFormModal() {
+    selectedForm = null
+    formData = {}
+    formResponse = null
+  }
+
+  function handleTabChange(tab) {
+    activeTargetTab = tab
+  }
+  async function analyzeVulnerabilities() {
+    if (isScanning || isAnalyzing || fullCrawlResults.length === 0) return
+
+    try {
+      isAnalyzing = true
+      crawlStatus = 'Analyzing crawled data with AI...'
+
+      const payload = {
+        crawlResults: fullCrawlResults,
+        allApiCalls,
+        allCookies,
+        allEmails,
+        allAssets,
+        discoveredDomains
+        // We could also pass fuzz results if available
+      }
+
+      const response = await window.api.analyzer.analyzeVulnerabilities(payload)
+
+      if (response.success && response.report) {
+        vulnerabilities = response.report.vulnerabilities.map((v) => ({
+          id: v.id || Math.random().toString(36).substr(2, 9),
+          name: v.title,
+          severity: v.severity,
+          description: v.description,
+          recommendation: v.recommendation,
+          affectedAssets: v.affectedAssets || [],
+          // Add size for grid view visualization
+          size: v.severity === 'critical' ? 3 : v.severity === 'high' ? 2 : 1
+        }))
+
+        crawlStatus = `Analysis complete: Found ${vulnerabilities.length} vulnerabilities`
+        activeTargetTab = 'vulnerabilities'
+      } else {
+        console.error('Analysis error:', response.error)
+        crawlStatus = `Analysis error: ${response.error}`
+      }
+    } catch (error) {
+      console.error('Analysis failed:', error)
+      crawlStatus = 'Analysis failed'
+    } finally {
+      isAnalyzing = false
+    }
+  }
+</script>
+
+<div class="flex flex-col bg-black w-screen h-screen text-white text-sm">
+  <TitleBar />
+
+  <ScanHeader
+    {isScanning}
+    {isAnalyzing}
+    {showResults}
+    {crawlStatus}
+    {totalUrls}
+    {critical}
+    {high}
+    {medium}
+    {low}
+    onStartScan={startScan}
+    onStopScan={stopScan}
+    onAnalyze={analyzeVulnerabilities}
+  />
+
+  <div class="flex-1 flex overflow-hidden">
+    <!-- Main Content Area -->
+    <div class="flex-1 p-3 overflow-y-auto">
+      {#if !showResults}
+        <EmptyState message="Enter a URL and click "Start Scan" to begin" />
+      {:else}
+        <div class="h-full flex flex-col">
+          <!-- Tab Navigation -->
+          <TabNavigation
+            activeTab={activeTargetTab}
+            discoveredUrlsCount={discoveredUrls.length}
+            formsCount={allForms.length}
+            {assetsCount}
+            apiCallsCount={allApiCalls.length}
+            cookiesCount={allCookies.length}
+            domainsCount={discoveredDomains.length}
+            emailsCount={allEmails.length}
+            onTabChange={handleTabChange}
+          />
+
+          <!-- Tab Content -->
+          <div class="flex-1 overflow-y-auto">
+            {#if activeTargetTab === 'urls'}
+              <UrlsTab
+                {crawledUrls}
+                {discoveredUrls}
+                selectedUrl={selectedCrawledUrl}
+                onSelectUrl={selectUrl}
+                baseUrl={scannedBaseUrl}
+              />
+            {:else if activeTargetTab === 'domains'}
+              <DomainsTab {discoveredDomains} />
+            {:else if activeTargetTab === 'vulnerabilities'}
+              <VulnerabilitiesTab {vulnerabilities} onAddToReport={addToReport} />
+            {:else if activeTargetTab === 'forms'}
+              <FormsTab {allForms} onSelectForm={selectForm} />
+            {:else if activeTargetTab === 'assets'}
+              <AssetsTab {allAssets} />
+            {:else if activeTargetTab === 'apiCalls'}
+              <ApiCallsTab {allApiCalls} />
+            {:else if activeTargetTab === 'cookies'}
+              <CookiesTab {allCookies} />
+            {:else if activeTargetTab === 'emails'}
+              <EmailsTab {allEmails} />
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Report Sidebar -->
+    {#if reportItems.length > 0}
+      <ReportSidebar
+        {reportItems}
+        onRemoveFromReport={removeFromReport}
+        onExportReport={exportReport}
+      />
+    {/if}
+  </div>
+</div>
+
+<!-- Form Modal -->
+<FormModal
+  {selectedForm}
+  {formData}
+  {formResponse}
+  {isSubmittingForm}
+  onClose={closeFormModal}
+  onSubmit={submitForm}
+/>

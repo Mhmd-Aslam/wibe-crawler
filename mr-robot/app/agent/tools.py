@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, List
 import requests
 from langchain.tools import tool
 
-def truncate_output(text: str, max_chars: int = 5000) -> str:
+def truncate_output(text: str, max_chars: int = 3000) -> str:
     """Truncate long tool outputs to avoid context window overflow."""
     if not text:
         return ""

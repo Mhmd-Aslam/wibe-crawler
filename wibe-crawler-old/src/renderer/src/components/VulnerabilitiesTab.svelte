@@ -226,13 +226,7 @@
                   class="text-[10px] text-gray-500 font-mono truncate max-w-[60%]"
                   title={vuln.location}
                 >
-                  {(() => {
-                    try {
-                      return new URL(vuln.location).pathname
-                    } catch (e) {
-                      return vuln.location
-                    }
-                  })()}
+                  {new URL(vuln.location).pathname}
                 </span>
               {/if}
               <button

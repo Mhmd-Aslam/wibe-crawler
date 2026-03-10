@@ -66,57 +66,6 @@ const api = {
     removeAllListeners: () => {
       ipcRenderer.removeAllListeners('quota-status')
     }
-  },
-  backendAgent: {
-    // Configuration
-    setEndpoint: (endpoint: string) => ipcRenderer.invoke('backend-set-endpoint', endpoint),
-    getEndpoint: () => ipcRenderer.invoke('backend-get-endpoint'),
-    testConnection: () => ipcRenderer.invoke('backend-test-connection'),
-    
-    // Scan operations
-    startScan: (target: string, scanType: 'quick' | 'full' | 'targeted', threadId?: string, discoveryData?: any) => 
-      ipcRenderer.invoke('backend-start-scan', { target, scanType, threadId, discoveryData }),
-    stopScan: () => ipcRenderer.invoke('backend-stop-scan'),
-    isActive: () => ipcRenderer.invoke('backend-is-active'),
-    
-    // Event listeners
-    onScanStarted: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-scan-started', (_, data) => callback(data))
-    },
-    onScanAborted: (callback: () => void) => {
-      ipcRenderer.on('backend-scan-aborted', () => callback())
-    },
-    onThinking: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-thinking', (_, data) => callback(data))
-    },
-    onToolCall: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-tool-call', (_, data) => callback(data))
-    },
-    onTodoUpdate: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-todo-update', (_, data) => callback(data))
-    },
-    onResponse: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-response', (_, data) => callback(data))
-    },
-    onComplete: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-scan-complete', (_, data) => callback(data))
-    },
-    onError: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-scan-error', (_, data) => callback(data))
-    },
-    onVulnerability: (callback: (data: any) => void) => {
-      ipcRenderer.on('backend-vulnerability', (_, data) => callback(data))
-    },
-    removeAllListeners: () => {
-      ipcRenderer.removeAllListeners('backend-scan-started')
-      ipcRenderer.removeAllListeners('backend-scan-aborted')
-      ipcRenderer.removeAllListeners('backend-thinking')
-      ipcRenderer.removeAllListeners('backend-tool-call')
-      ipcRenderer.removeAllListeners('backend-todo-update')
-      ipcRenderer.removeAllListeners('backend-response')
-      ipcRenderer.removeAllListeners('backend-scan-complete')
-      ipcRenderer.removeAllListeners('backend-scan-error')
-    }
   }
 }
 

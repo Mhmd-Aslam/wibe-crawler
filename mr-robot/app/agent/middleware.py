@@ -29,6 +29,9 @@ def cache_model_calls(
     handler: Callable[[ModelRequest], ModelResponse]
 ) -> ModelResponse:
     """Cache model calls to reduce redundant API requests."""
+    # TEMPORARY: Disable caching to prevent re-hydration crashes with custom ModelResponse objects
+    return handler(request)
+    
     if not is_cache_available():
         return handler(request)
     
@@ -76,6 +79,9 @@ def cache_tool_calls(
     handler: Callable[[Any], ToolMessage]
 ) -> ToolMessage:
     """Cache tool call results to avoid redundant executions."""
+    # TEMPORARY: Disable caching to prevent re-hydration crashes with custom ToolMessage objects
+    return handler(request)
+
     if not is_cache_available():
         return handler(request)
     
@@ -216,7 +222,14 @@ def rotate_models_on_rate_limit(
                 is_rate_limit = "rate limit" in error_str or "429" in error_str or "quota" in error_str
                 
                 if is_rate_limit:
-                    from agent.llm import refresh_llms
+                    from agent.llm import refresh_llms, mark_key_cooldown
+                    # Extract the API key from the failing model if possible
+                    try:
+                        failing_key = model.api_key.get_secret_value()
+                        mark_key_cooldown(failing_key)
+                    except:
+                        pass
+                        
                     logger.warning(f"🔄 Rate limit hit on {model.model_name}. Rotating API keys...")
                     refresh_llms() # Update global LLM instances with new random keys
                 
@@ -236,12 +249,11 @@ def rotate_models_on_rate_limit(
                     error_type = "Payload too large"
                     # Prune history if it's too big
                     messages = list(request.state.get("messages", []))
-                    if len(messages) > 2:
+                    if len(messages) > 3:
                         logger.warning(f"⚠️ {error_type} on {model.model_name}. Pruning history aggressively...")
-                        # Keep system prompt (if index 0) and ONLY the last 2 messages
-                        # This minimizes context size for the retry
-                        if len(messages) > 1:
-                            pruned_messages = [messages[0]] + messages[-2:]
+                        # Keep System Prompt (0), Original Instruction (1), and Last 2 Messages
+                        if len(messages) > 3:
+                            pruned_messages = messages[:2] + messages[-2:]
                         else:
                             pruned_messages = messages
                         request.state["messages"] = pruned_messages

@@ -133,9 +133,12 @@ async def scan_stream(request: ScanRequest):
                 await asyncio.sleep(0.01)
             
         except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"❌ Scan stream error: {error_detail}")
             error_event = {
                 "type": "error",
-                "data": {"error": str(e)}
+                "data": {"error": f"{str(e)}\n{error_detail}"}
             }
             yield f"data: {json.dumps(error_event)}\n\n"
     

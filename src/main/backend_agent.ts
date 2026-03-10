@@ -41,6 +41,7 @@ export interface ScanRequest {
   target: string
   scan_type: ScanType
   thread_id: string
+  discovery_data?: any
 }
 
 export interface ThinkingEvent {
@@ -90,6 +91,13 @@ export interface ErrorEvent {
   }
 }
 
+export interface VulnerabilityEvent {
+  type: 'vulnerability'
+  data: {
+    vulnerability: any
+  }
+}
+
 export type SSEEvent =
   | ThinkingEvent
   | ToolCallEvent
@@ -97,6 +105,7 @@ export type SSEEvent =
   | ResponseEvent
   | CompleteEvent
   | ErrorEvent
+  | VulnerabilityEvent
 
 // ============================================================================
 // Backend Agent Client
@@ -126,7 +135,8 @@ export class BackendAgent extends EventEmitter {
   async startScan(
     target: string,
     scanType: ScanType = 'quick',
-    threadId?: string
+    threadId?: string,
+    discoveryData?: any
   ): Promise<void> {
     if (this.isScanning) {
       throw new Error('A scan is already in progress. Stop it before starting a new one.')
@@ -138,7 +148,8 @@ export class BackendAgent extends EventEmitter {
     const scanRequest: ScanRequest = {
       target,
       scan_type: scanType,
-      thread_id: threadId || this.generateThreadId()
+      thread_id: threadId || this.generateThreadId(),
+      discovery_data: discoveryData
     }
 
     console.log(`[BackendAgent] Starting ${scanType} scan for: ${target}`)
@@ -259,7 +270,12 @@ export class BackendAgent extends EventEmitter {
         this.isScanning = false
         break
 
+      case 'vulnerability':
+        this.emit('vulnerability', event.data)
+        break
+
       case 'error':
+        console.error('[BackendAgent] Received error event from backend:', event.data)
         this.emit('error', event.data)
         this.isScanning = false
         break
@@ -309,6 +325,7 @@ export interface BackendAgentEvents {
   'response': (data: ResponseEvent['data']) => void
   'complete': (data: CompleteEvent['data']) => void
   'error': (data: ErrorEvent['data']) => void
+  'vulnerability': (data: VulnerabilityEvent['data']) => void
 }
 
 export declare interface BackendAgent {
