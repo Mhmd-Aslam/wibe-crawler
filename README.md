@@ -34,6 +34,18 @@ The integrated backend provides access to:
 
 ---
 
+
+## 📸 Screenshots
+
+<div align="center">
+  <img src="ss/ss1.png" width="400" />
+  <img src="ss/ss2.png" width="400" />
+  <img src="ss/ss3.png" width="400" />
+  <img src="ss/ss4.png" width="400" />
+  <img src="ss/ss5.png" width="400" />
+</div>
+
+
 ## Project Setup
 
 ### Prerequisites
