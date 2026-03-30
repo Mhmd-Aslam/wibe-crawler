@@ -20,6 +20,21 @@ $ npm install
 $ npm run dev
 ```
 
+### Backend (mr-robot)
+
+The backend agent is located in the `mr-robot` directory. You can manage it using the following commands from the root:
+
+```bash
+# Start backend
+$ npm run backend:up
+
+# Stop backend
+$ npm run backend:down
+
+# View backend logs
+$ npm run backend:logs
+```
+
 ### Build
 
 ```bash

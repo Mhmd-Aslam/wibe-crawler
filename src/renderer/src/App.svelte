@@ -309,8 +309,14 @@
               // Look for JSON vulnerability data in the response
               const vulnerabilityData = parseVulnerabilitiesFromResponse(content)
               if (vulnerabilityData && vulnerabilityData.length > 0) {
+                const prevCount = vulnerabilities.length
                 vulnerabilities = vulnerabilityData
                 crawlStatus = `Found ${vulnerabilities.length} vulnerabilities`
+                
+                // Auto-switch to vulnerabilities tab when FIRST batch of vulnerabilities is found
+                if (prevCount === 0 && vulnerabilities.length > 0) {
+                  activeTargetTab = 'vulnerabilities'
+                }
               }
             }
           } catch (err) {
@@ -342,6 +348,11 @@
             analysisTimer = null
           }
           crawlStatus = `Analysis error: ${data.error}`
+          
+          // Switch tab even on error if we found something
+          if (vulnerabilities.length > 0) {
+            activeTargetTab = 'vulnerabilities'
+          }
         })
       }
     }
